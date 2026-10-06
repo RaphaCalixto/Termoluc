@@ -1,11 +1,11 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { Client, Equipment, Technician, ServiceOrder, ServiceOrderImage, DashboardMetrics } from '../types';
 
-const STORAGE_KEY_CLIENTS = 'termoluc_clients_v2';
-const STORAGE_KEY_EQUIPMENT = 'termoluc_equipment_v2';
-const STORAGE_KEY_TECHNICIANS = 'termoluc_technicians_v2';
-const STORAGE_KEY_ORDERS = 'termoluc_service_orders_v2';
-const STORAGE_KEY_ORDER_IMAGES = 'termoluc_order_images_v2';
+const STORAGE_KEY_CLIENTS = 'termoluc_clients_v3';
+const STORAGE_KEY_EQUIPMENT = 'termoluc_equipment_v3';
+const STORAGE_KEY_TECHNICIANS = 'termoluc_technicians_v3';
+const STORAGE_KEY_ORDERS = 'termoluc_service_orders_v3';
+const STORAGE_KEY_ORDER_IMAGES = 'termoluc_order_images_v3';
 
 // BroadcastChannel para sincronização em tempo real entre abas/janelas
 const syncChannel = typeof window !== 'undefined' && 'BroadcastChannel' in window
@@ -29,7 +29,9 @@ export function subscribeToDataChanges(callback: (entity: string) => void) {
   return () => syncChannel.removeEventListener('message', handler);
 }
 
-// Técnicos Oficiais da Termoluc Refrigeração
+// -------------------------------------------------------------
+// DADOS REAIS OFICIAIS TERMOLUC
+// -------------------------------------------------------------
 const INITIAL_TECHNICIANS: Technician[] = [
   {
     id: 'tech-1',
@@ -62,177 +64,151 @@ const INITIAL_TECHNICIANS: Technician[] = [
 
 const INITIAL_CLIENTS: Client[] = [
   {
-    id: 'client-1',
-    name: 'Restaurante Sabor Real',
-    document: '12.345.678/0001-90',
-    phone: '(11) 3456-7890',
-    email: 'contato@saborreal.com.br',
-    address: 'Av. Paulista, 1200 - Bela Vista, São Paulo - SP, 01310-100',
-    address_2: 'Rua Augusta, 450 - Consolação, São Paulo - SP (Unidade 2)',
-    notes: 'Acesso para manutenção técnica somente entre 07:00 e 11:00 ou após 15:30. Responsável: Sr. Roberto.',
-    image_url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&auto=format&fit=crop&q=80',
+    id: 'client-ana-holk',
+    name: 'Ana Holk',
+    document: '',
+    phone: 'n tem',
+    email: 'ana.holk@email.com',
+    address: 'Avenida Borges de Medeiros 3407/401',
+    notes: '',
     created_by: 'Alesandro',
-    created_at: new Date(Date.now() - 60 * 86400000).toISOString(),
+    created_at: '2026-09-01T10:00:00.000Z',
   },
   {
-    id: 'client-2',
-    name: 'Frigorífico & Distribuidora Boi Nobre',
-    document: '98.765.432/0001-12',
-    phone: '(11) 4567-8901',
-    email: 'operacoes@boinobre.com.br',
-    address: 'Rod. Anhanguera, Km 28 - Perus, São Paulo - SP, 05275-000',
-    address_2: 'Av. das Nações Unidas, 1420 - Galpão 3, São Paulo - SP',
-    address_3: 'Rua da Mooca, 890 - Mooca, São Paulo - SP',
-    notes: 'Necessário uso de EPI completo (bota térmica, casaco frigorífico e capacete). Manutenção crítica em câmara de congelamento.',
-    image_url: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&auto=format&fit=crop&q=80',
+    id: 'client-dona-jurema',
+    name: 'Dona Jurema',
+    document: '2323322323',
+    phone: '2323322323',
+    email: 'teste@outlook.com',
+    address: 'Madureira',
+    notes: '',
     created_by: 'Alesandro',
-    created_at: new Date(Date.now() - 45 * 86400000).toISOString(),
+    created_at: '2026-08-26T14:00:00.000Z',
   },
   {
-    id: 'client-3',
-    name: 'Hotel & Convenções Continental Prime',
-    document: '45.678.901/0001-23',
-    phone: '(11) 2345-6789',
-    email: 'engenharia@continentalprime.com.br',
-    address: 'Rua Oscar Freire, 850 - Jardins, São Paulo - SP, 01426-001',
-    notes: 'Contrato de manutenção preventiva mensal (PMOC) com 12 splits e 1 Chiller central.',
-    image_url: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&auto=format&fit=crop&q=80',
+    id: 'client-flavia',
+    name: 'Flavia',
+    document: '',
+    phone: '324342343',
+    email: 'flavia@email.com',
+    address: 'Ipanema',
+    notes: '',
     created_by: 'Alesandro',
-    created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
+    created_at: '2026-08-26T11:00:00.000Z',
+  },
+  {
+    id: 'client-luis-pessoa',
+    name: 'Luis Pessoa',
+    document: '',
+    phone: '32232323',
+    email: 'luis.pessoa@email.com',
+    address: 'Ipanema',
+    notes: '',
+    created_by: 'Alesandro',
+    created_at: '2026-09-01T15:00:00.000Z',
   }
 ];
 
 const INITIAL_EQUIPMENT: Equipment[] = [
   {
-    id: 'equip-1',
-    client_id: 'client-1',
-    client_ids: ['client-1'],
-    type: 'Câmara Frigorífica de Resfriados',
-    brand: 'Bitzer / Elgin',
-    model: 'Walk-in Cooler 15m³',
-    serial_number: 'BITZ-2024-8891',
-    capacity: '15m³ - 3 HP',
-    installation_location: 'Cozinha Principal / Estoque de Perecíveis',
-    installation_date: '2024-03-15',
-    notes: 'Fluído refrigerante R-404A. Pressão de trabalho nominal: 18 bar alta / 2.5 bar baixa.',
-    image_url: 'https://images.unsplash.com/photo-1584992236310-6edddc08acff?w=600&auto=format&fit=crop&q=80',
+    id: 'equip-ana-1',
+    client_id: 'client-ana-holk',
+    client_ids: ['client-ana-holk'],
+    type: 'Ar-condicionado Split Hi-Wall',
+    brand: 'CARRIER',
+    model: 'n sei',
+    installation_location: 'Sala dutado',
+    installation_date: '2026-09-01',
     created_by: 'Alesandro',
-    created_at: new Date(Date.now() - 60 * 86400000).toISOString(),
+    created_at: '2026-09-01T10:05:00.000Z',
   },
   {
-    id: 'equip-2',
-    client_id: 'client-1',
-    client_ids: ['client-1'],
-    type: 'Ar Condicionado Split Cassete',
-    brand: 'Daikin',
-    model: 'FCQ36PVM',
-    serial_number: 'DAIK-87263-BR',
-    capacity: '36.000 BTU/h Inverter',
-    installation_location: 'Salão de Clientes - Frente',
-    installation_date: '2024-03-15',
-    notes: 'R-410A. Ciclo Frio.',
-    image_url: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=600&auto=format&fit=crop&q=80',
+    id: 'equip-ana-2',
+    client_id: 'client-ana-holk',
+    client_ids: ['client-ana-holk'],
+    type: 'Ar-condicionado Split Hi-Wall',
+    brand: 'CARRIER',
+    model: 'n sei',
+    installation_location: 'Sala TV',
+    installation_date: '2026-09-01',
     created_by: 'Alesandro',
-    created_at: new Date(Date.now() - 58 * 86400000).toISOString(),
+    created_at: '2026-09-01T10:10:00.000Z',
   },
   {
-    id: 'equip-3',
-    client_id: 'client-2',
-    client_ids: ['client-2'],
-    type: 'Câmara Frigorífica de Congelados',
-    brand: 'Frigoking / Copeland',
-    model: 'Discus 10HP Baixa',
-    serial_number: 'COP-9921-XF',
-    capacity: '60m³ (-22°C)',
-    installation_location: 'Galpão 2 - Setor de Expedição de Carnes',
-    installation_date: '2023-11-10',
-    notes: 'Desgelo elétrico automático com timer digital e controlador Full Gauge TC-900.',
-    image_url: 'https://images.unsplash.com/photo-1584992236310-6edddc08acff?w=600&auto=format&fit=crop&q=80',
+    id: 'equip-ana-3',
+    client_id: 'client-ana-holk',
+    client_ids: ['client-ana-holk'],
+    type: 'Ar-condicionado Split Hi-Wall',
+    brand: 'CARRIER',
+    model: 'n sei',
+    installation_location: 'Suite',
+    installation_date: '2026-09-01',
     created_by: 'Alesandro',
-    created_at: new Date(Date.now() - 45 * 86400000).toISOString(),
+    created_at: '2026-09-01T10:15:00.000Z',
   },
   {
-    id: 'equip-4',
-    client_id: 'client-3',
-    client_ids: ['client-3'],
-    type: 'Chiller de Condensação a Ar',
-    brand: 'Carrier',
-    model: 'AquaSnap 30RB',
-    serial_number: 'CARR-CHILL-402',
-    capacity: '40 TR',
-    installation_location: 'Cobertura Técnica - Torre A',
-    installation_date: '2022-08-20',
-    notes: 'Sistema central que atende o lobby e centro de convenções. Óleo sintético POE.',
-    image_url: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=600&auto=format&fit=crop&q=80',
+    id: 'equip-ana-4',
+    client_id: 'client-ana-holk',
+    client_ids: ['client-ana-holk'],
+    type: 'Ar-condicionado Split Hi-Wall',
+    brand: 'CARRIER',
+    model: 'n sei',
+    installation_location: 'Quarto 2',
+    installation_date: '2026-09-01',
     created_by: 'Alesandro',
-    created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
+    created_at: '2026-09-01T10:20:00.000Z',
+  },
+  {
+    id: 'equip-ana-5',
+    client_id: 'client-ana-holk',
+    client_ids: ['client-ana-holk'],
+    type: 'Ar-condicionado Split Hi-Wall',
+    brand: 'CARRIER',
+    model: 'n sei',
+    installation_location: 'Quarto 1',
+    installation_date: '2026-09-01',
+    created_by: 'Alesandro',
+    created_at: '2026-09-01T10:25:00.000Z',
+  },
+  {
+    id: 'equip-flavia-1',
+    client_id: 'client-flavia',
+    client_ids: ['client-flavia'],
+    type: 'Ar-condicionado Split Hi-Wall',
+    brand: 'SEI LA',
+    model: 'teste',
+    installation_date: '2026-08-26',
+    created_by: 'Alesandro',
+    created_at: '2026-08-26T11:30:00.000Z',
+  },
+  {
+    id: 'equip-jurema-1',
+    client_id: 'client-dona-jurema',
+    client_ids: ['client-dona-jurema'],
+    type: 'Ar-condicionado Split Hi-Wall',
+    brand: 'CONSUL',
+    model: 'air master',
+    installation_location: 'quarto',
+    installation_date: '2026-08-26',
+    created_by: 'Alesandro',
+    created_at: '2026-08-26T14:15:00.000Z',
+  },
+  {
+    id: 'equip-jurema-2',
+    client_id: 'client-dona-jurema',
+    client_ids: ['client-dona-jurema'],
+    type: 'Ar-condicionado Split Hi-Wall',
+    brand: 'SPRING 30K',
+    model: 'samsung',
+    installation_location: 'sala',
+    installation_date: '2026-08-26',
+    created_by: 'Alesandro',
+    created_at: '2026-08-26T14:20:00.000Z',
   }
 ];
 
-const INITIAL_SERVICE_ORDERS: ServiceOrder[] = [
-  {
-    id: 'os-1',
-    order_number: 'OS-2026-1001',
-    client_id: 'client-1',
-    client_ids: ['client-1'],
-    equipment_id: 'equip-1',
-    technician_id: 'tech-1',
-    service_date: '2026-08-24',
-    description: 'Manutenção preventiva com limpeza química dos evaporadores, verificação de carga de fluido R-404A e teste de vedação das gaxetas da porta.',
-    notes: 'Pressões aferidas dentro da faixa ideal. Sensor de temperatura calibrado.',
-    status: 'Concluída',
-    value: 850.00,
-    created_by: 'Alesandro',
-    created_at: new Date(Date.now() - 3 * 86400000).toISOString(),
-  },
-  {
-    id: 'os-2',
-    order_number: 'OS-2026-1002',
-    client_id: 'client-2',
-    client_ids: ['client-2'],
-    equipment_id: 'equip-3',
-    technician_id: 'tech-2',
-    service_date: '2026-08-26',
-    description: 'Substituição de contator e relé térmico do motor ventilador do condensador após alarme de sobrecarga. Teste de isolamento elétrico.',
-    notes: 'Câmara voltou a operar em -21.8°C com estabilidade.',
-    status: 'Em andamento',
-    value: 1420.00,
-    created_by: 'Alesandro',
-    created_at: new Date(Date.now() - 1 * 86400000).toISOString(),
-  },
-  {
-    id: 'os-3',
-    order_number: 'OS-2026-1003',
-    client_id: 'client-3',
-    client_ids: ['client-3'],
-    equipment_id: 'equip-4',
-    technician_id: 'tech-3',
-    service_date: '2026-08-27',
-    description: 'Higienização e revisão periódica PMOC do Chiller de 40 TR: limpeza das serpentinas de condensação, inspeção de vibração e reaperto elétrico do quadro de comando.',
-    notes: 'Agendado para o período da manhã.',
-    status: 'Pendente',
-    value: 2800.00,
-    created_by: 'Alesandro',
-    created_at: new Date().toISOString(),
-  }
-];
-
-const INITIAL_ORDER_IMAGES: ServiceOrderImage[] = [
-  {
-    id: 'img-1',
-    service_order_id: 'os-1',
-    image_url: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600&auto=format&fit=crop&q=80',
-    caption: 'Verificação manométrica dos compressores',
-    created_at: new Date(Date.now() - 3 * 86400000).toISOString(),
-  },
-  {
-    id: 'img-2',
-    service_order_id: 'os-2',
-    image_url: 'https://images.unsplash.com/photo-1581092335397-9583fe92d232?w=600&auto=format&fit=crop&q=80',
-    caption: 'Quadro elétrico revisado e componentes novos',
-    created_at: new Date(Date.now() - 1 * 86400000).toISOString(),
-  }
-];
+const INITIAL_SERVICE_ORDERS: ServiceOrder[] = [];
+const INITIAL_ORDER_IMAGES: ServiceOrderImage[] = [];
 
 // Funções de Inicialização e Leitura/Escrita Local
 function getStored<T>(key: string, initial: T[]): T[] {
@@ -264,6 +240,7 @@ export async function getClients(): Promise<Client[]> {
         .from('clients')
         .select('*')
         .order('name', { ascending: true });
+
       if (!error && data) {
         if (data.length > 0) {
           return data;
@@ -322,7 +299,6 @@ export async function createClient(clientData: Omit<Client, 'id' | 'created_at' 
 
       if (!error && data) {
         notifyDataChange('clients');
-        // Mantém cache local atualizado
         const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS);
         clients.unshift(data);
         setStored(STORAGE_KEY_CLIENTS, clients);
@@ -1150,7 +1126,6 @@ export async function syncAllDataToSupabase(): Promise<{ success: boolean; messa
     const equipIdMap = new Map<string, string>();
     for (const e of equipment) {
       const targetClientId = clientIdMap.get(e.client_id) || e.client_id;
-      // Se não for UUID válido de cliente no Supabase, pula
       if (!targetClientId || targetClientId.startsWith('client-')) continue;
 
       const { data: existing } = await supabase
