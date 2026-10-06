@@ -42,11 +42,11 @@ export const SettingsPage: React.FC = () => {
     try {
       const backupData = {
         exportedAt: new Date().toISOString(),
-        clients: JSON.parse(localStorage.getItem('termoluc_clients_v2') || '[]'),
-        equipment: JSON.parse(localStorage.getItem('termoluc_equipment_v2') || '[]'),
-        technicians: JSON.parse(localStorage.getItem('termoluc_technicians_v2') || '[]'),
-        service_orders: JSON.parse(localStorage.getItem('termoluc_service_orders_v2') || '[]'),
-        order_images: JSON.parse(localStorage.getItem('termoluc_order_images_v2') || '[]'),
+        clients: JSON.parse(localStorage.getItem('termoluc_clients_v4') || localStorage.getItem('termoluc_clients_v2') || '[]'),
+        equipment: JSON.parse(localStorage.getItem('termoluc_equipment_v4') || localStorage.getItem('termoluc_equipment_v2') || '[]'),
+        technicians: JSON.parse(localStorage.getItem('termoluc_technicians_v4') || localStorage.getItem('termoluc_technicians_v2') || '[]'),
+        service_orders: JSON.parse(localStorage.getItem('termoluc_service_orders_v4') || localStorage.getItem('termoluc_service_orders_v2') || '[]'),
+        order_images: JSON.parse(localStorage.getItem('termoluc_order_images_v4') || localStorage.getItem('termoluc_order_images_v2') || '[]'),
       };
 
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
@@ -68,17 +68,18 @@ export const SettingsPage: React.FC = () => {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const parsed = JSON.parse(event.target?.result as string);
-        if (parsed.clients) localStorage.setItem('termoluc_clients_v2', JSON.stringify(parsed.clients));
-        if (parsed.equipment) localStorage.setItem('termoluc_equipment_v2', JSON.stringify(parsed.equipment));
-        if (parsed.technicians) localStorage.setItem('termoluc_technicians_v2', JSON.stringify(parsed.technicians));
-        if (parsed.service_orders) localStorage.setItem('termoluc_service_orders_v2', JSON.stringify(parsed.service_orders));
-        if (parsed.order_images) localStorage.setItem('termoluc_order_images_v2', JSON.stringify(parsed.order_images));
+        if (parsed.clients) localStorage.setItem('termoluc_clients_v4', JSON.stringify(parsed.clients));
+        if (parsed.equipment) localStorage.setItem('termoluc_equipment_v4', JSON.stringify(parsed.equipment));
+        if (parsed.technicians) localStorage.setItem('termoluc_technicians_v4', JSON.stringify(parsed.technicians));
+        if (parsed.service_orders) localStorage.setItem('termoluc_service_orders_v4', JSON.stringify(parsed.service_orders));
+        if (parsed.order_images) localStorage.setItem('termoluc_order_images_v4', JSON.stringify(parsed.order_images));
 
-        success('Backup importado com sucesso! Recarregando sistema...');
-        setTimeout(() => window.location.reload(), 1000);
+        success('Backup importado localmente! Enviando para o Supabase...');
+        await syncAllDataToSupabase();
+        setTimeout(() => window.location.reload(), 1200);
       } catch {
         error('Arquivo de backup inválido.');
       }
@@ -190,14 +191,14 @@ export const SettingsPage: React.FC = () => {
               type="button"
               onClick={handleSyncSupabase}
               disabled={syncing}
-              className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-termoluc-600 hover:bg-termoluc-700 text-white font-bold text-xs shadow-sm shadow-termoluc-200 transition-all active:scale-95 disabled:opacity-50"
+              className="w-full inline-flex items-center justify-center gap-2.5 px-4 py-3.5 rounded-2xl bg-termoluc-600 hover:bg-termoluc-700 text-white font-bold text-sm shadow-md shadow-termoluc-600/30 transition-all active:scale-98 disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? 'Sincronizando com Supabase...' : 'Sincronizar Dados com o Banco Supabase Agora'}
+              {syncing ? 'Sincronizando com Supabase...' : 'Sincronizar Cadastros com o Banco Supabase'}
             </button>
-            <p className="text-[11px] text-slate-400 mt-1.5 text-center">
-              Clique para enviar os cadastros existentes para as tabelas do Supabase (clients, equipment, technicians, OS).
-            </p>
+            <div className="mt-2 p-2.5 bg-blue-50/70 border border-blue-100 rounded-xl text-[11px] text-slate-600 leading-relaxed">
+              💡 <strong>Instrução:</strong> Se você realizou cadastros ou edições neste computador, clique no botão acima para enviar tudo automaticamente para a nuvem. Todos os demais computadores passarão a enxergar esses dados instantaneamente.
+            </div>
           </div>
 
           <div className="pt-2 space-y-2 border-t border-slate-100">
