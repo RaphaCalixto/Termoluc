@@ -66,15 +66,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          if (parsed.email?.toLowerCase() === 'termolucarcondicionado@gmail.com') {
-            parsed.name = 'Alesandro';
+          if (parsed && parsed.email) {
+            if (parsed.email.toLowerCase() === 'termolucarcondicionado@gmail.com') {
+              parsed.name = 'Alesandro';
+            }
+            setUser(parsed);
+          } else {
+            setUser(null);
           }
-          setUser(parsed);
         } catch {
-          setUser(PRESET_ADMINS[0]);
+          setUser(null);
         }
       } else {
-        setUser(PRESET_ADMINS[0]);
+        setUser(null);
       }
       setLoading(false);
     }
@@ -85,13 +89,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password = ''): Promise<{ success: boolean; error?: string }> => {
     setLoading(true);
     const cleanEmail = email.toLowerCase().trim();
+    const cleanPassword = password.trim();
+
+    if (!cleanEmail || !cleanPassword) {
+      setLoading(false);
+      return { success: false, error: 'Por favor, informe seu e-mail e senha de acesso.' };
+    }
 
     // 1. Tenta autenticação no Supabase se configurado
     if (isSupabaseConfigured && supabase) {
       try {
         const { data, error } = await supabase.auth.signInWithPassword({
           email: cleanEmail,
-          password,
+          password: cleanPassword,
         });
 
         if (!error && data.user) {
@@ -107,14 +117,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return { success: true };
         }
       } catch {
-        // Se der erro de schema no Supabase, continua para a validação local
+        // Se der erro de rede/schema no Supabase, continua para a validação das credenciais oficiais
       }
     }
 
-    // 2. Validação direta para o Administrador Alesandro
+    // 2. Validação estrita das credenciais do Administrador Alesandro
     if (
       cleanEmail === 'termolucarcondicionado@gmail.com' &&
-      (password === 'Ar103021' || !password || password === 'termoluc123')
+      cleanPassword === 'Ar103021'
     ) {
       const officialAdmin = PRESET_ADMINS[0];
       setUser(officialAdmin);
@@ -123,22 +133,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: true };
     }
 
-    // 3. E-mails administrativos adicionais
-    if (cleanEmail.includes('@')) {
-      const adminUser: User = {
-        id: `admin-${Date.now()}`,
-        email: cleanEmail,
-        name: cleanEmail === 'termolucarcondicionado@gmail.com' ? 'Alesandro' : cleanEmail.split('@')[0].toUpperCase(),
-        role: 'admin',
-      };
-      setUser(adminUser);
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(adminUser));
-      setLoading(false);
-      return { success: true };
-    }
-
     setLoading(false);
-    return { success: false, error: 'E-mail ou senha incorretos. Utilize as credenciais do Administrador.' };
+    return { success: false, error: 'E-mail ou senha incorretos. Acesso restrito ao Administrador.' };
   };
 
   const logout = async () => {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Mail, ArrowRight, ShieldCheck, HelpCircle } from 'lucide-react';
+import { Lock, Mail, ArrowRight, HelpCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Modal } from '../components/ui/Modal';
@@ -10,8 +10,8 @@ export const Login: React.FC = () => {
   const { success, error } = useToast();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('termolucarcondicionado@gmail.com');
-  const [password, setPassword] = useState('Ar103021');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Modal de Recuperação de Senha
@@ -21,8 +21,8 @@ export const Login: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) {
-      error('Por favor, informe seu e-mail de acesso.');
+    if (!email.trim() || !password.trim()) {
+      error('Por favor, informe seu e-mail e senha de acesso.');
       return;
     }
 
@@ -87,7 +87,7 @@ export const Login: React.FC = () => {
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                E-mail do Administrador
+                E-mail de Acesso
               </label>
               <div className="relative rounded-xl shadow-xs">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -96,7 +96,7 @@ export const Login: React.FC = () => {
                 <input
                   type="email"
                   required
-                  placeholder="termolucarcondicionado@gmail.com"
+                  placeholder="seu-email@exemplo.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="block w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-termoluc-500 focus:ring-2 focus:ring-termoluc-200 outline-none text-sm text-slate-900 bg-white"
@@ -147,30 +147,6 @@ export const Login: React.FC = () => {
               )}
             </button>
           </form>
-
-          {/* Conta Oficial Vinculada */}
-          <div className="mt-6 pt-5 border-t border-slate-100">
-            <div
-              onClick={() => {
-                setEmail('termolucarcondicionado@gmail.com');
-                setPassword('Ar103021');
-              }}
-              className="p-3 rounded-2xl bg-termoluc-50/70 border border-termoluc-200 text-xs text-termoluc-900 flex items-center justify-between cursor-pointer hover:bg-termoluc-100/70 transition-colors"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="p-1.5 rounded-xl bg-termoluc-600 text-white">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-                <div>
-                  <span className="font-bold block text-slate-900">Administrador Oficial</span>
-                  <span className="text-[11px] text-slate-500">termolucarcondicionado@gmail.com</span>
-                </div>
-              </div>
-              <span className="text-[10px] font-bold text-termoluc-700 bg-white px-2 py-1 rounded-lg border border-termoluc-200 shadow-2xs">
-                Preencher
-              </span>
-            </div>
-          </div>
         </div>
       </div>
 
