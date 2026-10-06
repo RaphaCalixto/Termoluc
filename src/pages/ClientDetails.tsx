@@ -409,7 +409,19 @@ export const ClientDetails: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="space-y-1 text-xs text-slate-600 pt-2 border-t border-slate-100">
+                      <div className="space-y-1.5 text-xs text-slate-600 pt-2 border-t border-slate-100">
+                        {equip.address && (
+                          <p className="flex items-start gap-1.5 text-slate-800">
+                            <MapPin className="w-3.5 h-3.5 text-termoluc-600 flex-shrink-0 mt-0.5" />
+                            <span className="font-semibold leading-tight">{equip.address}</span>
+                          </p>
+                        )}
+                        {equip.installation_location && (
+                          <p className="flex items-center gap-1.5 text-slate-700">
+                            <span className="text-[10px] uppercase font-bold text-slate-400">Cômodo:</span>
+                            <span className="font-medium text-slate-800">{equip.installation_location}</span>
+                          </p>
+                        )}
                         {equip.serial_number && (
                           <p className="flex items-center gap-1.5">
                             <Tag className="w-3 h-3 text-slate-400" />
@@ -422,20 +434,14 @@ export const ClientDetails: React.FC = () => {
                             Capacidade: <span className="font-semibold text-slate-800">{equip.capacity}</span>
                           </p>
                         )}
-                        {equip.installation_location && (
-                          <p className="flex items-center gap-1.5">
-                            <MapPin className="w-3 h-3 text-slate-400" />
-                            Local: <span className="text-slate-800">{equip.installation_location}</span>
-                          </p>
-                        )}
                         {equip.installation_date && (
-                          <p className="flex items-center gap-1.5 text-[11px] text-slate-400 pt-1">
+                          <p className="flex items-center gap-1.5 text-[11px] text-slate-400 pt-0.5">
                             <Calendar className="w-3 h-3" />
                             Instalação: {new Date(equip.installation_date).toLocaleDateString('pt-BR')}
                           </p>
                         )}
                         {equip.created_by && (
-                          <p className="flex items-center gap-1.5 text-[11px] text-termoluc-700 font-medium pt-1">
+                          <p className="flex items-center gap-1.5 text-[11px] text-termoluc-700 font-medium pt-0.5">
                             <UserCheck className="w-3 h-3 text-termoluc-600" />
                             Cadastrado por: {equip.created_by}
                           </p>

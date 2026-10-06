@@ -97,6 +97,7 @@ export const EquipmentPage: React.FC = () => {
       item.brand.toLowerCase().includes(query) ||
       item.model.toLowerCase().includes(query) ||
       (item.serial_number && item.serial_number.toLowerCase().includes(query)) ||
+      (item.address && item.address.toLowerCase().includes(query)) ||
       (item.installation_location && item.installation_location.toLowerCase().includes(query)) ||
       (item.client_name && item.client_name.toLowerCase().includes(query));
 
@@ -286,17 +287,23 @@ export const EquipmentPage: React.FC = () => {
                   </div>
 
                   {/* Specs */}
-                  <div className="space-y-1 text-xs text-slate-600 pt-3 border-t border-slate-100 mt-3">
+                  <div className="space-y-1.5 text-xs text-slate-600 pt-3 border-t border-slate-100 mt-3">
+                    {item.address && (
+                      <p className="flex items-start gap-1.5 text-slate-800">
+                        <MapPin className="w-3.5 h-3.5 text-termoluc-600 flex-shrink-0 mt-0.5" />
+                        <span className="font-semibold leading-tight">{item.address}</span>
+                      </p>
+                    )}
+                    {item.installation_location && (
+                      <p className="flex items-center gap-1.5 text-slate-700">
+                        <span className="text-[10px] uppercase font-bold text-slate-400">Cômodo:</span>
+                        <span className="font-medium text-slate-850">{item.installation_location}</span>
+                      </p>
+                    )}
                     {item.serial_number && (
                       <p className="flex items-center gap-1.5">
                         <Tag className="w-3 h-3 text-slate-400" />
                         Série: <span className="font-semibold text-slate-800">{item.serial_number}</span>
-                      </p>
-                    )}
-                    {item.installation_location && (
-                      <p className="flex items-center gap-1.5">
-                        <MapPin className="w-3 h-3 text-slate-400" />
-                        Local: <span className="text-slate-800">{item.installation_location}</span>
                       </p>
                     )}
                     {item.installation_date && (

@@ -33,7 +33,8 @@ export interface Equipment {
   model: string;
   serial_number?: string;
   capacity?: string; // ex: 18.000 BTU, 5 HP, 2.5 TR
-  installation_location?: string; // ex: Sala de Reunião 2, Cozinha Industrial
+  address?: string; // Endereço/Imóvel onde este equipamento está instalado
+  installation_location?: string; // ex: Sala de Reunião 2, Quarto 1, Cozinha Industrial
   installation_date?: string;
   notes?: string;
   image_url?: string;

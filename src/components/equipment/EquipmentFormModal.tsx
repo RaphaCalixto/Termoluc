@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Modal } from '../ui/Modal';
 import { MultiImageUpload } from '../ui/ImageUpload';
 import { SearchableClientSelect } from '../ui/SearchableClientSelect';
@@ -6,6 +6,7 @@ import { Equipment, Client } from '../../types';
 import { createEquipment, updateEquipment, getClients } from '../../services/db';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
+import { MapPin } from 'lucide-react';
 
 interface EquipmentFormModalProps {
   isOpen: boolean;
@@ -45,12 +46,14 @@ export const EquipmentFormModal: React.FC<EquipmentFormModalProps> = ({
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
   const [images, setImages] = useState<string[]>([]);
+  const [customAddressMode, setCustomAddressMode] = useState(false);
   const [formData, setFormData] = useState({
     type: 'Ar-condicionado Split Hi-Wall',
     brand: '',
     model: '',
     serial_number: '',
     capacity: '',
+    address: '',
     installation_location: '',
     installation_date: '',
     notes: '',
@@ -68,6 +71,26 @@ export const EquipmentFormModal: React.FC<EquipmentFormModalProps> = ({
       loadClients();
     }
   }, [isOpen]);
+
+  // Lista de endereços disponíveis a partir dos clientes selecionados
+  const availableAddresses = useMemo(() => {
+    const list: { clientName: string; label: string; address: string }[] = [];
+    const selectedClientsList = clients.filter(c => selectedClientIds.includes(c.id));
+
+    selectedClientsList.forEach(c => {
+      if (c.address?.trim()) {
+        list.push({ clientName: c.name, label: `Endereço 1 (Principal)`, address: c.address.trim() });
+      }
+      if (c.address_2?.trim()) {
+        list.push({ clientName: c.name, label: `Endereço 2 (Opcional)`, address: c.address_2.trim() });
+      }
+      if (c.address_3?.trim()) {
+        list.push({ clientName: c.name, label: `Endereço 3 (Opcional)`, address: c.address_3.trim() });
+      }
+    });
+
+    return list;
+  }, [clients, selectedClientIds]);
 
   useEffect(() => {
     if (equipment) {
@@ -87,27 +110,48 @@ export const EquipmentFormModal: React.FC<EquipmentFormModalProps> = ({
         model: equipment.model || '',
         serial_number: equipment.serial_number || '',
         capacity: equipment.capacity || '',
+        address: equipment.address || '',
         installation_location: equipment.installation_location || '',
         installation_date: equipment.installation_date || '',
         notes: equipment.notes || '',
         created_by: equipment.created_by || user?.name || 'Alesandro',
       });
+      setCustomAddressMode(false);
     } else {
-      setSelectedClientIds(defaultClientId ? [defaultClientId] : (clients[0] ? [clients[0].id] : []));
+      const initialIds = defaultClientId ? [defaultClientId] : (clients[0] ? [clients[0].id] : []);
+      setSelectedClientIds(initialIds);
       setImages([]);
+
+      // Pega endereço do primeiro cliente selecionado por padrão
+      const defaultClient = clients.find(c => initialIds.includes(c.id));
+      const defaultAddr = defaultClient?.address || '';
+
       setFormData({
         type: 'Ar-condicionado Split Hi-Wall',
         brand: '',
         model: '',
         serial_number: '',
         capacity: '',
+        address: defaultAddr,
         installation_location: '',
         installation_date: new Date().toISOString().split('T')[0],
         notes: '',
         created_by: user?.name || 'Alesandro',
       });
+      setCustomAddressMode(false);
     }
   }, [equipment, defaultClientId, isOpen, clients, user]);
+
+  // Se o usuário seleciona um novo cliente e o endereço estiver vazio, preenche automaticamente
+  const handleSelectClients = (ids: string[]) => {
+    setSelectedClientIds(ids);
+    if (!formData.address) {
+      const selected = clients.find(c => ids.includes(c.id));
+      if (selected?.address) {
+        setFormData(prev => ({ ...prev, address: selected.address }));
+      }
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,7 +208,7 @@ export const EquipmentFormModal: React.FC<EquipmentFormModalProps> = ({
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Cliente Proprietário com Suporte a Múltiplos Clientes (Casais/Sócios) */}
+          {/* Cliente Proprietário com Suporte a Múltiplos Clientes */}
           <div className="sm:col-span-2">
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
               <span>Cliente(s) Proprietário(s) <span className="text-red-500">*</span></span>
@@ -176,10 +220,63 @@ export const EquipmentFormModal: React.FC<EquipmentFormModalProps> = ({
               clients={clients}
               isMulti={true}
               selectedClientIds={selectedClientIds}
-              onSelectClientIds={(ids) => setSelectedClientIds(ids)}
+              onSelectClientIds={handleSelectClients}
               labelPlaceholder="Buscar e vincular cliente(s) proprietário(s)..."
               required
             />
+          </div>
+
+          {/* Vínculo de Endereço do Equipamento (Endereço 1, 2, 3 do Cliente) */}
+          <div className="sm:col-span-2 bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200/80 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-termoluc-600" />
+                <span>Endereço / Imóvel do Equipamento</span>
+              </label>
+
+              {availableAddresses.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setCustomAddressMode(!customAddressMode)}
+                  className="text-[11px] font-semibold text-termoluc-600 hover:text-termoluc-700 hover:underline"
+                >
+                  {customAddressMode ? 'Selecionar da lista do cliente' : '+ Digitar outro endereço'}
+                </button>
+              )}
+            </div>
+
+            {!customAddressMode && availableAddresses.length > 0 ? (
+              <div className="space-y-1.5">
+                <select
+                  value={formData.address}
+                  onChange={e => setFormData({ ...formData, address: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white focus:border-termoluc-500 focus:ring-2 focus:ring-termoluc-200 outline-none text-xs sm:text-sm font-medium text-slate-800"
+                >
+                  <option value="">Selecione em qual endereço este equipamento está instalado...</option>
+                  {availableAddresses.map((item, idx) => (
+                    <option key={idx} value={item.address}>
+                      {selectedClientIds.length > 1 ? `[${item.clientName}] ` : ''}{item.label}: {item.address}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-400">
+                  O cliente possui {availableAddresses.length} endereço(s) cadastrado(s). Escolha acima onde este aparelho está instalado.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <input
+                  type="text"
+                  placeholder="Ex: Av. Borges de Medeiros, 3407 - Apto 401 ou Rod. Anhanguera Km 28"
+                  value={formData.address}
+                  onChange={e => setFormData({ ...formData, address: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white focus:border-termoluc-500 focus:ring-2 focus:ring-termoluc-200 outline-none text-xs sm:text-sm"
+                />
+                <p className="text-[11px] text-slate-400">
+                  Informe o endereço específico deste maquinário caso seja diferente do cadastro principal.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Tipo do equipamento */}
@@ -256,14 +353,14 @@ export const EquipmentFormModal: React.FC<EquipmentFormModalProps> = ({
             />
           </div>
 
-          {/* Local de Instalação */}
+          {/* Local de Instalação no Imóvel */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-              Local de Instalação
+              Local / Cômodo no Imóvel
             </label>
             <input
               type="text"
-              placeholder="Ex: Cozinha Industrial, Salão Principal, Telhado"
+              placeholder="Ex: Sala TV, Quarto 1, Cozinha, Suíte"
               value={formData.installation_location}
               onChange={e => setFormData({ ...formData, installation_location: e.target.value })}
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-termoluc-500 focus:ring-2 focus:ring-termoluc-200 outline-none text-sm"

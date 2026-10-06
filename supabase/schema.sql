@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS public.equipment (
     model TEXT NOT NULL,
     serial_number TEXT,
     capacity TEXT,
+    address TEXT,
     installation_location TEXT,
     installation_date DATE,
     notes TEXT,
