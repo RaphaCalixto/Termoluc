@@ -7,25 +7,46 @@ import {
   Upload,
   CheckCircle2,
   Copy,
-  Check
+  Check,
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
 import { isSupabaseConfigured } from '../lib/supabase';
+import { syncAllDataToSupabase } from '../services/db';
 import { PRESET_ADMINS } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
 export const SettingsPage: React.FC = () => {
-  const { success, error } = useToast();
+  const { success, error, info } = useToast();
   const [copied, setCopied] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSyncSupabase = async () => {
+    try {
+      setSyncing(true);
+      info('Iniciando sincronização com as tabelas do Supabase...');
+      const res = await syncAllDataToSupabase();
+      if (res.success) {
+        success(res.message);
+      } else {
+        error(res.message);
+      }
+    } catch (err: any) {
+      error(err.message || 'Falha ao sincronizar com o Supabase.');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleExportBackup = () => {
     try {
       const backupData = {
         exportedAt: new Date().toISOString(),
-        clients: JSON.parse(localStorage.getItem('termoluc_clients_v1') || '[]'),
-        equipment: JSON.parse(localStorage.getItem('termoluc_equipment_v1') || '[]'),
-        technicians: JSON.parse(localStorage.getItem('termoluc_technicians_v1') || '[]'),
-        service_orders: JSON.parse(localStorage.getItem('termoluc_service_orders_v1') || '[]'),
-        order_images: JSON.parse(localStorage.getItem('termoluc_order_images_v1') || '[]'),
+        clients: JSON.parse(localStorage.getItem('termoluc_clients_v2') || '[]'),
+        equipment: JSON.parse(localStorage.getItem('termoluc_equipment_v2') || '[]'),
+        technicians: JSON.parse(localStorage.getItem('termoluc_technicians_v2') || '[]'),
+        service_orders: JSON.parse(localStorage.getItem('termoluc_service_orders_v2') || '[]'),
+        order_images: JSON.parse(localStorage.getItem('termoluc_order_images_v2') || '[]'),
       };
 
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
@@ -50,11 +71,11 @@ export const SettingsPage: React.FC = () => {
     reader.onload = (event) => {
       try {
         const parsed = JSON.parse(event.target?.result as string);
-        if (parsed.clients) localStorage.setItem('termoluc_clients_v1', JSON.stringify(parsed.clients));
-        if (parsed.equipment) localStorage.setItem('termoluc_equipment_v1', JSON.stringify(parsed.equipment));
-        if (parsed.technicians) localStorage.setItem('termoluc_technicians_v1', JSON.stringify(parsed.technicians));
-        if (parsed.service_orders) localStorage.setItem('termoluc_service_orders_v1', JSON.stringify(parsed.service_orders));
-        if (parsed.order_images) localStorage.setItem('termoluc_order_images_v1', JSON.stringify(parsed.order_images));
+        if (parsed.clients) localStorage.setItem('termoluc_clients_v2', JSON.stringify(parsed.clients));
+        if (parsed.equipment) localStorage.setItem('termoluc_equipment_v2', JSON.stringify(parsed.equipment));
+        if (parsed.technicians) localStorage.setItem('termoluc_technicians_v2', JSON.stringify(parsed.technicians));
+        if (parsed.service_orders) localStorage.setItem('termoluc_service_orders_v2', JSON.stringify(parsed.service_orders));
+        if (parsed.order_images) localStorage.setItem('termoluc_order_images_v2', JSON.stringify(parsed.order_images));
 
         success('Backup importado com sucesso! Recarregando sistema...');
         setTimeout(() => window.location.reload(), 1000);
@@ -79,7 +100,7 @@ export const SettingsPage: React.FC = () => {
           Configurações do Sistema
         </h1>
         <p className="text-xs sm:text-sm text-slate-500">
-          Gerenciamento da base compartilhada, administradores e integração com o banco de dados
+          Gerenciamento da base compartilhada, administradores e sincronização com o banco PostgreSQL / Supabase
         </p>
       </div>
 
@@ -140,7 +161,7 @@ export const SettingsPage: React.FC = () => {
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900">Banco de Dados PostgreSQL / Supabase</h2>
-              <p className="text-xs text-slate-500">Status da conexão de persistência</p>
+              <p className="text-xs text-slate-500">Status da conexão e sincronização em nuvem</p>
             </div>
           </div>
 
@@ -149,21 +170,37 @@ export const SettingsPage: React.FC = () => {
               {isSupabaseConfigured ? (
                 <>
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span className="text-emerald-800">Conectado ao Supabase Cloud</span>
+                  <span className="text-emerald-800">Conectado ao Supabase (njdkldfvyjxkybumhzah)</span>
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="w-4 h-4 text-termoluc-600" />
-                  <span className="text-slate-800">Motor de Persistência Compartilhada Ativo</span>
+                  <AlertCircle className="w-4 h-4 text-amber-600" />
+                  <span className="text-slate-800">Persistência Local Ativa</span>
                 </>
               )}
             </div>
             <p className="text-slate-600 leading-relaxed">
-              O sistema possui sincronização em tempo real entre abas, navegadores e armazenamento seguro. Para conectar ao seu próprio projeto PostgreSQL no Supabase, configure o arquivo <code className="bg-slate-200 px-1.5 py-0.5 rounded font-mono text-[11px]">.env</code> com sua URL e chave.
+              Todos os novos clientes, equipamentos e ordens de serviço salvos são gravados nas tabelas do Supabase.
             </p>
           </div>
 
-          <div className="pt-2 space-y-2">
+          {/* Botão de Forçar Sincronização */}
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={handleSyncSupabase}
+              disabled={syncing}
+              className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-termoluc-600 hover:bg-termoluc-700 text-white font-bold text-xs shadow-sm shadow-termoluc-200 transition-all active:scale-95 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Sincronizando com Supabase...' : 'Sincronizar Dados com o Banco Supabase Agora'}
+            </button>
+            <p className="text-[11px] text-slate-400 mt-1.5 text-center">
+              Clique para enviar os cadastros existentes para as tabelas do Supabase (clients, equipment, technicians, OS).
+            </p>
+          </div>
+
+          <div className="pt-2 space-y-2 border-t border-slate-100">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
               Script SQL de Criação das Tabelas & RLS:
             </span>

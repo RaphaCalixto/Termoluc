@@ -1,8 +1,8 @@
 -- ==============================================================================
 -- SCHEMA BANCO DE DADOS CENTRALIZADO: TERMOLUC REFRIGERAÇÃO
 -- ==============================================================================
--- Todos os administradores autenticados compartilham e visualizam a mesma base
--- de dados em tempo real.
+-- Todos os administradores compartilham e visualizam a mesma base
+-- de dados em tempo real através do Supabase.
 -- ==============================================================================
 
 -- 1. Habilitar extensões necessárias
@@ -10,7 +10,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 2. Tabela de Perfis de Usuários (Administradores)
 CREATE TABLE IF NOT EXISTS public.profiles (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'admin',
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS public.technicians (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. Tabela de Clientes (com suporte a múltiplos endereços e rastreabilidade de ADM)
+-- 4. Tabela de Clientes (com múltiplos endereços e rastreabilidade)
 CREATE TABLE IF NOT EXISTS public.clients (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL,
@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS public.clients (
 CREATE TABLE IF NOT EXISTS public.equipment (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     client_id UUID NOT NULL REFERENCES public.clients(id) ON DELETE CASCADE,
+    client_ids TEXT[],
     type TEXT NOT NULL,
     brand TEXT NOT NULL,
     model TEXT NOT NULL,
@@ -61,6 +62,7 @@ CREATE TABLE IF NOT EXISTS public.equipment (
     installation_date DATE,
     notes TEXT,
     image_url TEXT,
+    images TEXT[],
     created_by TEXT DEFAULT 'Alesandro',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -73,6 +75,7 @@ CREATE TABLE IF NOT EXISTS public.service_orders (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     order_number TEXT NOT NULL UNIQUE,
     client_id UUID NOT NULL REFERENCES public.clients(id) ON DELETE RESTRICT,
+    client_ids TEXT[],
     equipment_id UUID REFERENCES public.equipment(id) ON DELETE SET NULL,
     technician_id UUID NOT NULL REFERENCES public.technicians(id) ON DELETE RESTRICT,
     service_date DATE NOT NULL,
@@ -114,7 +117,7 @@ FOR EACH ROW
 EXECUTE FUNCTION generate_os_number();
 
 -- ==============================================================================
--- ROW LEVEL SECURITY (RLS) - ACESSO TOTAL ENTRE ADMINISTRADORES
+-- ROW LEVEL SECURITY (RLS) - PERMISSÃO COMPLETA PARA A APLICAÇÃO
 -- ==============================================================================
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.technicians ENABLE ROW LEVEL SECURITY;
@@ -123,31 +126,57 @@ ALTER TABLE public.equipment ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.service_orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.service_order_images ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Authenticated users have full access to profiles" ON public.profiles FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "Authenticated users have full access to technicians" ON public.technicians FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "Authenticated users have full access to clients" ON public.clients FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "Authenticated users have full access to equipment" ON public.equipment FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "Authenticated users have full access to service_orders" ON public.service_orders FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "Authenticated users have full access to service_order_images" ON public.service_order_images FOR ALL TO authenticated USING (true) WITH CHECK (true);
+-- Limpar policies antigas se existirem
+DROP POLICY IF EXISTS "Full access to profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Full access to technicians" ON public.technicians;
+DROP POLICY IF EXISTS "Full access to clients" ON public.clients;
+DROP POLICY IF EXISTS "Full access to equipment" ON public.equipment;
+DROP POLICY IF EXISTS "Full access to service_orders" ON public.service_orders;
+DROP POLICY IF EXISTS "Full access to service_order_images" ON public.service_order_images;
+
+DROP POLICY IF EXISTS "Authenticated users have full access to profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Authenticated users have full access to technicians" ON public.technicians;
+DROP POLICY IF EXISTS "Authenticated users have full access to clients" ON public.clients;
+DROP POLICY IF EXISTS "Authenticated users have full access to equipment" ON public.equipment;
+DROP POLICY IF EXISTS "Authenticated users have full access to service_orders" ON public.service_orders;
+DROP POLICY IF EXISTS "Authenticated users have full access to service_order_images" ON public.service_order_images;
+
+-- Políticas universais para a aplicação Termoluc (anon e authenticated)
+CREATE POLICY "Full access to profiles" ON public.profiles FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Full access to technicians" ON public.technicians FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Full access to clients" ON public.clients FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Full access to equipment" ON public.equipment FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Full access to service_orders" ON public.service_orders FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Full access to service_order_images" ON public.service_order_images FOR ALL TO public USING (true) WITH CHECK (true);
 
 -- ==============================================================================
--- STORAGE BUCKETS (Para fotos de clientes, equipamentos e OS)
+-- STORAGE BUCKETS (Fotos de clientes, equipamentos e OS)
 -- ==============================================================================
 INSERT INTO storage.buckets (id, name, public) 
 VALUES ('termoluc-media', 'termoluc-media', true)
 ON CONFLICT (id) DO NOTHING;
 
+DROP POLICY IF EXISTS "Public media access" ON storage.objects;
+DROP POLICY IF EXISTS "Public media insert" ON storage.objects;
+DROP POLICY IF EXISTS "Public media update" ON storage.objects;
+DROP POLICY IF EXISTS "Public media delete" ON storage.objects;
+
 CREATE POLICY "Public media access" ON storage.objects FOR SELECT TO public USING (bucket_id = 'termoluc-media');
-CREATE POLICY "Authenticated users can upload media" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'termoluc-media');
-CREATE POLICY "Authenticated users can update media" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = 'termoluc-media');
-CREATE POLICY "Authenticated users can delete media" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'termoluc-media');
+CREATE POLICY "Public media insert" ON storage.objects FOR INSERT TO public WITH CHECK (bucket_id = 'termoluc-media');
+CREATE POLICY "Public media update" ON storage.objects FOR UPDATE TO public USING (bucket_id = 'termoluc-media');
+CREATE POLICY "Public media delete" ON storage.objects FOR DELETE TO public USING (bucket_id = 'termoluc-media');
 
 -- ==============================================================================
--- DADOS INICIAIS (SEED) DOS TÉCNICOS OFICIAIS TERMOLUC
+-- SEED DE TÉCNICOS OFICIAIS
 -- ==============================================================================
 INSERT INTO public.technicians (name, phone, specialty, active)
-VALUES 
-  ('Alessandro Araújo', '(11) 98765-4321', 'Refrigeração e Climatização', true),
-  ('Carlos Alberto', '(11) 97654-3210', 'Sistemas VRF e Splits', true),
-  ('Marquinhos', '(11) 96543-2109', 'Câmaras Frigoríficas e Manutenção', true)
-ON CONFLICT DO NOTHING;
+SELECT 'Alessandro Araújo', '(11) 98765-4321', 'Refrigeração e Climatização', true
+WHERE NOT EXISTS (SELECT 1 FROM public.technicians WHERE name = 'Alessandro Araújo');
+
+INSERT INTO public.technicians (name, phone, specialty, active)
+SELECT 'Carlos Alberto', '(11) 97654-3210', 'Sistemas VRF e Splits', true
+WHERE NOT EXISTS (SELECT 1 FROM public.technicians WHERE name = 'Carlos Alberto');
+
+INSERT INTO public.technicians (name, phone, specialty, active)
+SELECT 'Marquinhos', '(11) 96543-2109', 'Câmaras Frigoríficas e Manutenção', true
+WHERE NOT EXISTS (SELECT 1 FROM public.technicians WHERE name = 'Marquinhos');

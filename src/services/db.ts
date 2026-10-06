@@ -264,9 +264,15 @@ export async function getClients(): Promise<Client[]> {
         .from('clients')
         .select('*')
         .order('name', { ascending: true });
-      if (!error && data && data.length > 0) return data;
-    } catch {
-      // Fallback
+      if (!error && data) {
+        if (data.length > 0) {
+          return data;
+        }
+      } else if (error) {
+        console.error('Erro ao buscar clientes no Supabase:', error);
+      }
+    } catch (err) {
+      console.error('Falha de conexão com Supabase:', err);
     }
   }
   const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS);
@@ -282,6 +288,7 @@ export async function getClientById(id: string): Promise<Client | null> {
         .eq('id', id)
         .single();
       if (!error && data) return data;
+      if (error) console.warn('Supabase getClientById:', error.message);
     } catch {
       // Fallback
     }
@@ -291,28 +298,49 @@ export async function getClientById(id: string): Promise<Client | null> {
 }
 
 export async function createClient(clientData: Omit<Client, 'id' | 'created_at' | 'updated_at'>): Promise<Client> {
-  const newClient: Client = {
-    ...clientData,
-    id: `client-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-    created_by: clientData.created_by || 'Alesandro',
-    created_at: new Date().toISOString(),
-  };
+  const fallbackId = `client-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+  const created_by = clientData.created_by || 'Alesandro';
 
   if (isSupabaseConfigured && supabase) {
     try {
       const { data, error } = await supabase
         .from('clients')
-        .insert([newClient])
+        .insert([{
+          name: clientData.name,
+          document: clientData.document || null,
+          phone: clientData.phone,
+          email: clientData.email,
+          address: clientData.address,
+          address_2: clientData.address_2 || null,
+          address_3: clientData.address_3 || null,
+          notes: clientData.notes || null,
+          image_url: clientData.image_url || null,
+          created_by,
+        }])
         .select()
         .single();
+
       if (!error && data) {
         notifyDataChange('clients');
+        // Mantém cache local atualizado
+        const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS);
+        clients.unshift(data);
+        setStored(STORAGE_KEY_CLIENTS, clients);
         return data;
+      } else if (error) {
+        console.error('Erro no Supabase ao inserir cliente:', error);
       }
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.error('Erro de rede ao salvar cliente no Supabase:', err);
     }
   }
+
+  const newClient: Client = {
+    ...clientData,
+    id: fallbackId,
+    created_by,
+    created_at: new Date().toISOString(),
+  };
 
   const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS);
   clients.unshift(newClient);
@@ -328,16 +356,36 @@ export async function updateClient(id: string, updates: Partial<Client>): Promis
     try {
       const { data, error } = await supabase
         .from('clients')
-        .update({ ...updates, updated_at })
+        .update({
+          name: updates.name,
+          document: updates.document,
+          phone: updates.phone,
+          email: updates.email,
+          address: updates.address,
+          address_2: updates.address_2,
+          address_3: updates.address_3,
+          notes: updates.notes,
+          image_url: updates.image_url,
+          updated_at,
+        })
         .eq('id', id)
         .select()
         .single();
+
       if (!error && data) {
         notifyDataChange('clients');
+        const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS);
+        const idx = clients.findIndex(c => c.id === id);
+        if (idx !== -1) {
+          clients[idx] = data;
+          setStored(STORAGE_KEY_CLIENTS, clients);
+        }
         return data;
+      } else if (error) {
+        console.error('Erro no Supabase ao atualizar cliente:', error);
       }
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.error('Erro de rede ao atualizar cliente no Supabase:', err);
     }
   }
 
@@ -357,10 +405,11 @@ export async function deleteClient(id: string): Promise<boolean> {
       const { error } = await supabase.from('clients').delete().eq('id', id);
       if (!error) {
         notifyDataChange('clients');
-        return true;
+      } else {
+        console.error('Erro no Supabase ao excluir cliente:', error);
       }
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.error('Erro de rede ao excluir cliente no Supabase:', err);
     }
   }
 
@@ -380,7 +429,7 @@ export async function deleteClient(id: string): Promise<boolean> {
 // EQUIPMENT API
 // -------------------------------------------------------------
 export async function getEquipment(): Promise<Equipment[]> {
-  const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS);
+  const clients = await getClients();
   const clientMap = new Map(clients.map(c => [c.id, c]));
 
   if (isSupabaseConfigured && supabase) {
@@ -389,23 +438,31 @@ export async function getEquipment(): Promise<Equipment[]> {
         .from('equipment')
         .select('*')
         .order('created_at', { ascending: false });
+
       if (!error && data && data.length > 0) {
         return data.map((item: any) => {
           const ids: string[] = item.client_ids && item.client_ids.length > 0
             ? item.client_ids
             : item.client_id ? [item.client_id] : [];
           const linkedClients = ids.map(cid => clientMap.get(cid)).filter(Boolean) as Client[];
-          const names = linkedClients.map(c => c.name).join(' & ') || 'Cliente';
+          const names = linkedClients.map(c => c.name).join(' & ') || clientMap.get(item.client_id)?.name || 'Cliente';
+          const photos = item.images && item.images.length > 0
+            ? item.images
+            : item.image_url ? [item.image_url] : [];
+
           return {
             ...item,
             client_ids: ids,
             client_name: names,
             clients: linkedClients,
+            images: photos,
           };
         });
+      } else if (error) {
+        console.error('Erro ao buscar equipamentos no Supabase:', error);
       }
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.error('Erro de rede ao buscar equipamentos no Supabase:', err);
     }
   }
 
@@ -443,35 +500,50 @@ export async function createEquipment(data: Omit<Equipment, 'id' | 'created_at' 
     : data.client_id ? [data.client_id] : [];
 
   const primaryClientId = ids[0] || data.client_id || '';
-
-  const newEquip: Equipment = {
-    ...data,
-    id: `equip-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-    client_id: primaryClientId,
-    client_ids: ids,
-    created_by: data.created_by || 'Alesandro',
-    created_at: new Date().toISOString(),
-  };
+  const created_by = data.created_by || 'Alesandro';
 
   if (isSupabaseConfigured && supabase) {
     try {
       const { data: created, error } = await supabase
         .from('equipment')
         .insert([{
-          ...data,
           client_id: primaryClientId,
-          created_by: newEquip.created_by,
+          client_ids: ids,
+          type: data.type,
+          brand: data.brand,
+          model: data.model,
+          serial_number: data.serial_number || null,
+          capacity: data.capacity || null,
+          installation_location: data.installation_location || null,
+          installation_date: data.installation_date || null,
+          notes: data.notes || null,
+          image_url: data.image_url || (data.images && data.images[0]) || null,
+          images: data.images || [],
+          created_by,
         }])
         .select()
         .single();
+
       if (!error && created) {
         notifyDataChange('equipment');
-        return (await getEquipmentById(created.id)) || newEquip;
+        return (await getEquipmentById(created.id)) || created;
+      } else if (error) {
+        console.error('Erro no Supabase ao inserir equipamento:', error);
       }
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.error('Erro de rede ao salvar equipamento no Supabase:', err);
     }
   }
+
+  const fallbackId = `equip-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+  const newEquip: Equipment = {
+    ...data,
+    id: fallbackId,
+    client_id: primaryClientId,
+    client_ids: ids,
+    created_by,
+    created_at: new Date().toISOString(),
+  };
 
   const equipment = getStored<Equipment>(STORAGE_KEY_EQUIPMENT, INITIAL_EQUIPMENT);
   equipment.unshift(newEquip);
@@ -486,25 +558,39 @@ export async function updateEquipment(id: string, updates: Partial<Equipment>): 
     : updates.client_id ? [updates.client_id] : undefined;
 
   const primaryClientId = ids ? (ids[0] || '') : updates.client_id;
+  const updated_at = new Date().toISOString();
 
   if (isSupabaseConfigured && supabase) {
     try {
       const { data, error } = await supabase
         .from('equipment')
         .update({
-          ...updates,
           ...(primaryClientId ? { client_id: primaryClientId } : {}),
-          updated_at: new Date().toISOString(),
+          ...(ids ? { client_ids: ids } : {}),
+          type: updates.type,
+          brand: updates.brand,
+          model: updates.model,
+          serial_number: updates.serial_number,
+          capacity: updates.capacity,
+          installation_location: updates.installation_location,
+          installation_date: updates.installation_date,
+          notes: updates.notes,
+          image_url: updates.image_url,
+          images: updates.images,
+          updated_at,
         })
         .eq('id', id)
         .select()
         .single();
+
       if (!error && data) {
         notifyDataChange('equipment');
-        return (await getEquipmentById(id))!;
+        return (await getEquipmentById(id)) || data;
+      } else if (error) {
+        console.error('Erro no Supabase ao atualizar equipamento:', error);
       }
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.error('Erro de rede ao atualizar equipamento no Supabase:', err);
     }
   }
 
@@ -515,6 +601,7 @@ export async function updateEquipment(id: string, updates: Partial<Equipment>): 
     ...equipment[index],
     ...updates,
     ...(ids ? { client_ids: ids, client_id: primaryClientId || equipment[index].client_id } : {}),
+    updated_at,
   };
   equipment[index] = updated;
   setStored(STORAGE_KEY_EQUIPMENT, equipment);
@@ -528,10 +615,11 @@ export async function deleteEquipment(id: string): Promise<boolean> {
       const { error } = await supabase.from('equipment').delete().eq('id', id);
       if (!error) {
         notifyDataChange('equipment');
-        return true;
+      } else {
+        console.error('Erro no Supabase ao excluir equipamento:', error);
       }
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.error('Erro de rede ao excluir equipamento no Supabase:', err);
     }
   }
 
@@ -553,8 +641,9 @@ export async function getTechnicians(): Promise<Technician[]> {
         .select('*')
         .order('name', { ascending: true });
       if (!error && data && data.length > 0) return data;
-    } catch {
-      // Fallback
+      if (error) console.error('Erro ao buscar técnicos no Supabase:', error);
+    } catch (err) {
+      console.error('Erro de rede ao buscar técnicos no Supabase:', err);
     }
   }
   const techs = getStored<Technician>(STORAGE_KEY_TECHNICIANS, INITIAL_TECHNICIANS);
@@ -562,27 +651,35 @@ export async function getTechnicians(): Promise<Technician[]> {
 }
 
 export async function createTechnician(data: Omit<Technician, 'id' | 'created_at'>): Promise<Technician> {
-  const newTech: Technician = {
-    ...data,
-    id: `tech-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-    created_at: new Date().toISOString(),
-  };
-
   if (isSupabaseConfigured && supabase) {
     try {
       const { data: created, error } = await supabase
         .from('technicians')
-        .insert([data])
+        .insert([{
+          name: data.name,
+          phone: data.phone || null,
+          email: data.email || null,
+          specialty: data.specialty || null,
+          active: data.active ?? true,
+        }])
         .select()
         .single();
       if (!error && created) {
         notifyDataChange('technicians');
         return created;
+      } else if (error) {
+        console.error('Erro no Supabase ao inserir técnico:', error);
       }
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.error('Erro de rede ao salvar técnico no Supabase:', err);
     }
   }
+
+  const newTech: Technician = {
+    ...data,
+    id: `tech-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+    created_at: new Date().toISOString(),
+  };
 
   const techs = getStored<Technician>(STORAGE_KEY_TECHNICIANS, INITIAL_TECHNICIANS);
   techs.push(newTech);
@@ -603,9 +700,11 @@ export async function updateTechnician(id: string, updates: Partial<Technician>)
       if (!error && data) {
         notifyDataChange('technicians');
         return data;
+      } else if (error) {
+        console.error('Erro no Supabase ao atualizar técnico:', error);
       }
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.error('Erro de rede ao atualizar técnico no Supabase:', err);
     }
   }
 
@@ -625,10 +724,11 @@ export async function deleteTechnician(id: string): Promise<boolean> {
       const { error } = await supabase.from('technicians').delete().eq('id', id);
       if (!error) {
         notifyDataChange('technicians');
-        return true;
+      } else {
+        console.error('Erro no Supabase ao excluir técnico:', error);
       }
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.error('Erro de rede ao excluir técnico no Supabase:', err);
     }
   }
 
@@ -643,11 +743,11 @@ export async function deleteTechnician(id: string): Promise<boolean> {
 // SERVICE ORDERS API
 // -------------------------------------------------------------
 export async function getServiceOrders(): Promise<ServiceOrder[]> {
-  const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS);
+  const clients = await getClients();
   const clientMap = new Map(clients.map(c => [c.id, c]));
   const equipment = await getEquipment();
   const equipmentMap = new Map(equipment.map(e => [e.id, e]));
-  const technicians = getStored<Technician>(STORAGE_KEY_TECHNICIANS, INITIAL_TECHNICIANS);
+  const technicians = await getTechnicians();
   const techMap = new Map(technicians.map(t => [t.id, t]));
   const images = getStored<ServiceOrderImage>(STORAGE_KEY_ORDER_IMAGES, INITIAL_ORDER_IMAGES);
 
@@ -661,6 +761,7 @@ export async function getServiceOrders(): Promise<ServiceOrder[]> {
           images:service_order_images(*)
         `)
         .order('service_date', { ascending: false });
+
       if (!error && data && data.length > 0) {
         return data.map((order: any) => {
           const ids: string[] = order.client_ids && order.client_ids.length > 0
@@ -678,9 +779,11 @@ export async function getServiceOrders(): Promise<ServiceOrder[]> {
             images: order.images || images.filter(img => img.service_order_id === order.id),
           };
         });
+      } else if (error) {
+        console.error('Erro ao buscar ordens de serviço no Supabase:', error);
       }
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.error('Erro de rede ao buscar ordens de serviço no Supabase:', err);
     }
   }
 
@@ -739,24 +842,11 @@ export async function createServiceOrder(
   data: Omit<ServiceOrder, 'id' | 'order_number' | 'created_at' | 'updated_at' | 'client' | 'clients' | 'equipment' | 'technician' | 'images'>,
   imageUrls: string[] = []
 ): Promise<ServiceOrder> {
-  const orders = getStored<ServiceOrder>(STORAGE_KEY_ORDERS, INITIAL_SERVICE_ORDERS);
-  const order_number = generateNextOSNumber(orders);
-  const newId = `os-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-
   const ids: string[] = data.client_ids && data.client_ids.length > 0
     ? data.client_ids
     : data.client_id ? [data.client_id] : [];
   const primaryClientId = ids[0] || data.client_id || '';
-
-  const newOrder: ServiceOrder = {
-    ...data,
-    id: newId,
-    order_number,
-    client_id: primaryClientId,
-    client_ids: ids,
-    created_by: data.created_by || 'Alesandro',
-    created_at: new Date().toISOString(),
-  };
+  const created_by = data.created_by || 'Alesandro';
 
   if (isSupabaseConfigured && supabase) {
     try {
@@ -764,14 +854,15 @@ export async function createServiceOrder(
         .from('service_orders')
         .insert([{
           client_id: primaryClientId,
+          client_ids: ids,
           equipment_id: data.equipment_id || null,
           technician_id: data.technician_id,
           service_date: data.service_date,
           description: data.description,
-          notes: data.notes,
+          notes: data.notes || null,
           status: data.status,
-          value: data.value,
-          created_by: newOrder.created_by,
+          value: data.value || null,
+          created_by,
         }])
         .select()
         .single();
@@ -785,12 +876,28 @@ export async function createServiceOrder(
           await supabase.from('service_order_images').insert(imageRows);
         }
         notifyDataChange('orders');
-        return (await getServiceOrderById(created.id)) || newOrder;
+        return (await getServiceOrderById(created.id)) || created;
+      } else if (error) {
+        console.error('Erro no Supabase ao criar ordem de serviço:', error);
       }
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.error('Erro de rede ao salvar OS no Supabase:', err);
     }
   }
+
+  const orders = getStored<ServiceOrder>(STORAGE_KEY_ORDERS, INITIAL_SERVICE_ORDERS);
+  const order_number = generateNextOSNumber(orders);
+  const newId = `os-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+
+  const newOrder: ServiceOrder = {
+    ...data,
+    id: newId,
+    order_number,
+    client_id: primaryClientId,
+    client_ids: ids,
+    created_by,
+    created_at: new Date().toISOString(),
+  };
 
   orders.unshift(newOrder);
   setStored(STORAGE_KEY_ORDERS, orders);
@@ -829,6 +936,7 @@ export async function updateServiceOrder(
         .from('service_orders')
         .update({
           ...(primaryClientId ? { client_id: primaryClientId } : {}),
+          ...(ids ? { client_ids: ids } : {}),
           equipment_id: updates.equipment_id,
           technician_id: updates.technician_id,
           service_date: updates.service_date,
@@ -847,10 +955,14 @@ export async function updateServiceOrder(
         }));
         await supabase.from('service_order_images').insert(imageRows);
       }
-      notifyDataChange('orders');
-      return (await getServiceOrderById(id))!;
-    } catch {
-      // Fallback
+      if (!error) {
+        notifyDataChange('orders');
+        return (await getServiceOrderById(id))!;
+      } else {
+        console.error('Erro no Supabase ao atualizar OS:', error);
+      }
+    } catch (err) {
+      console.error('Erro de rede ao atualizar OS no Supabase:', err);
     }
   }
 
@@ -889,10 +1001,11 @@ export async function deleteServiceOrder(id: string): Promise<boolean> {
       const { error } = await supabase.from('service_orders').delete().eq('id', id);
       if (!error) {
         notifyDataChange('orders');
-        return true;
+      } else {
+        console.error('Erro no Supabase ao excluir OS:', error);
       }
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.error('Erro de rede ao excluir OS no Supabase:', err);
     }
   }
 
@@ -913,10 +1026,11 @@ export async function deleteOrderImage(imageId: string): Promise<boolean> {
       const { error } = await supabase.from('service_order_images').delete().eq('id', imageId);
       if (!error) {
         notifyDataChange('orders');
-        return true;
+      } else {
+        console.error('Erro no Supabase ao excluir imagem:', error);
       }
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.error('Erro de rede ao excluir imagem no Supabase:', err);
     }
   }
 
@@ -955,4 +1069,163 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
     inProgressOrders,
     monthOrders,
   };
+}
+
+// -------------------------------------------------------------
+// SINCRONIZAÇÃO COMPLETA LOCAL -> SUPABASE POSTGRESQL
+// -------------------------------------------------------------
+export async function syncAllDataToSupabase(): Promise<{ success: boolean; message: string }> {
+  if (!isSupabaseConfigured || !supabase) {
+    return { success: false, message: 'Supabase não está configurado no arquivo .env' };
+  }
+
+  try {
+    const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS);
+    const equipment = getStored<Equipment>(STORAGE_KEY_EQUIPMENT, INITIAL_EQUIPMENT);
+    const technicians = getStored<Technician>(STORAGE_KEY_TECHNICIANS, INITIAL_TECHNICIANS);
+    const orders = getStored<ServiceOrder>(STORAGE_KEY_ORDERS, INITIAL_SERVICE_ORDERS);
+
+    // 1. Sincroniza Técnicos
+    const techIdMap = new Map<string, string>();
+    for (const t of technicians) {
+      const { data: existing } = await supabase
+        .from('technicians')
+        .select('id')
+        .eq('name', t.name)
+        .maybeSingle();
+
+      if (existing) {
+        techIdMap.set(t.id, existing.id);
+      } else {
+        const { data: created, error } = await supabase
+          .from('technicians')
+          .insert([{
+            name: t.name,
+            phone: t.phone,
+            email: t.email,
+            specialty: t.specialty,
+            active: t.active,
+          }])
+          .select('id')
+          .single();
+        if (created) techIdMap.set(t.id, created.id);
+        if (error) console.error('Erro ao sincronizar técnico:', error);
+      }
+    }
+
+    // 2. Sincroniza Clientes
+    const clientIdMap = new Map<string, string>();
+    for (const c of clients) {
+      const { data: existing } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('name', c.name)
+        .maybeSingle();
+
+      if (existing) {
+        clientIdMap.set(c.id, existing.id);
+      } else {
+        const { data: created, error } = await supabase
+          .from('clients')
+          .insert([{
+            name: c.name,
+            document: c.document,
+            phone: c.phone,
+            email: c.email,
+            address: c.address,
+            address_2: c.address_2,
+            address_3: c.address_3,
+            notes: c.notes,
+            image_url: c.image_url,
+            created_by: c.created_by || 'Alesandro',
+          }])
+          .select('id')
+          .single();
+        if (created) clientIdMap.set(c.id, created.id);
+        if (error) console.error('Erro ao sincronizar cliente:', error);
+      }
+    }
+
+    // 3. Sincroniza Equipamentos
+    const equipIdMap = new Map<string, string>();
+    for (const e of equipment) {
+      const targetClientId = clientIdMap.get(e.client_id) || e.client_id;
+      // Se não for UUID válido de cliente no Supabase, pula
+      if (!targetClientId || targetClientId.startsWith('client-')) continue;
+
+      const { data: existing } = await supabase
+        .from('equipment')
+        .select('id')
+        .eq('model', e.model)
+        .eq('client_id', targetClientId)
+        .maybeSingle();
+
+      if (existing) {
+        equipIdMap.set(e.id, existing.id);
+      } else {
+        const { data: created, error } = await supabase
+          .from('equipment')
+          .insert([{
+            client_id: targetClientId,
+            type: e.type,
+            brand: e.brand,
+            model: e.model,
+            serial_number: e.serial_number,
+            capacity: e.capacity,
+            installation_location: e.installation_location,
+            installation_date: e.installation_date || null,
+            notes: e.notes,
+            image_url: e.image_url || (e.images && e.images[0]) || null,
+            images: e.images || [],
+            created_by: e.created_by || 'Alesandro',
+          }])
+          .select('id')
+          .single();
+        if (created) equipIdMap.set(e.id, created.id);
+        if (error) console.error('Erro ao sincronizar equipamento:', error);
+      }
+    }
+
+    // 4. Sincroniza Ordens de Serviço
+    for (const o of orders) {
+      const targetClientId = clientIdMap.get(o.client_id) || o.client_id;
+      const targetTechId = techIdMap.get(o.technician_id) || o.technician_id;
+      const targetEquipId = o.equipment_id ? (equipIdMap.get(o.equipment_id) || null) : null;
+
+      if (!targetClientId || targetClientId.startsWith('client-')) continue;
+      if (!targetTechId || targetTechId.startsWith('tech-')) continue;
+
+      const { data: existing } = await supabase
+        .from('service_orders')
+        .select('id')
+        .eq('order_number', o.order_number)
+        .maybeSingle();
+
+      if (!existing) {
+        const { error } = await supabase
+          .from('service_orders')
+          .insert([{
+            order_number: o.order_number,
+            client_id: targetClientId,
+            equipment_id: targetEquipId,
+            technician_id: targetTechId,
+            service_date: o.service_date,
+            description: o.description,
+            notes: o.notes,
+            status: o.status,
+            value: o.value,
+            created_by: o.created_by || 'Alesandro',
+          }]);
+        if (error) console.error('Erro ao sincronizar OS:', error);
+      }
+    }
+
+    notifyDataChange('clients');
+    notifyDataChange('equipment');
+    notifyDataChange('orders');
+    return { success: true, message: 'Dados sincronizados com o Supabase com sucesso!' };
+  } catch (err: any) {
+    console.error('Erro durante a sincronização:', err);
+    return { success: false, message: err.message || 'Erro ao sincronizar com o banco de dados.' };
+  }
 }
