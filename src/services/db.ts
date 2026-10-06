@@ -1,13 +1,13 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { Client, Equipment, Technician, ServiceOrder, ServiceOrderImage, DashboardMetrics } from '../types';
 
-const STORAGE_KEY_CLIENTS = 'termoluc_clients_v3';
-const STORAGE_KEY_EQUIPMENT = 'termoluc_equipment_v3';
-const STORAGE_KEY_TECHNICIANS = 'termoluc_technicians_v3';
-const STORAGE_KEY_ORDERS = 'termoluc_service_orders_v3';
-const STORAGE_KEY_ORDER_IMAGES = 'termoluc_order_images_v3';
+const STORAGE_KEY_CLIENTS = 'termoluc_clients_v4';
+const STORAGE_KEY_EQUIPMENT = 'termoluc_equipment_v4';
+const STORAGE_KEY_TECHNICIANS = 'termoluc_technicians_v4';
+const STORAGE_KEY_ORDERS = 'termoluc_service_orders_v4';
+const STORAGE_KEY_ORDER_IMAGES = 'termoluc_order_images_v4';
 
-// BroadcastChannel para sincronização em tempo real entre abas/janelas
+// BroadcastChannel para sincronização rápida local
 const syncChannel = typeof window !== 'undefined' && 'BroadcastChannel' in window
   ? new BroadcastChannel('termoluc_sync_channel')
   : null;
@@ -18,19 +18,51 @@ export function notifyDataChange(entity: string) {
   }
 }
 
+// Sincronização em tempo real entre diferentes computadores via Supabase Realtime + Local
 export function subscribeToDataChanges(callback: (entity: string) => void) {
-  if (!syncChannel) return () => {};
-  const handler = (event: MessageEvent) => {
-    if (event.data?.type === 'DATA_CHANGED') {
-      callback(event.data.entity);
+  const cleanups: (() => void)[] = [];
+
+  // 1. Escuta local entre abas
+  if (syncChannel) {
+    const localHandler = (event: MessageEvent) => {
+      if (event.data?.type === 'DATA_CHANGED') {
+        callback(event.data.entity);
+      }
+    };
+    syncChannel.addEventListener('message', localHandler);
+    cleanups.push(() => syncChannel.removeEventListener('message', localHandler));
+  }
+
+  // 2. Escuta nuvem em tempo real (Supabase Realtime WebSockets entre diferentes computadores)
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const channel = supabase
+        .channel(`termoluc_realtime_${Math.random().toString(36).substring(2, 7)}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public' },
+          (payload) => {
+            notifyDataChange(payload.table || 'all');
+            callback(payload.table || 'all');
+          }
+        )
+        .subscribe();
+
+      cleanups.push(() => {
+        supabase?.removeChannel(channel);
+      });
+    } catch (err) {
+      console.warn('Realtime subscription fallback:', err);
     }
+  }
+
+  return () => {
+    cleanups.forEach(fn => fn());
   };
-  syncChannel.addEventListener('message', handler);
-  return () => syncChannel.removeEventListener('message', handler);
 }
 
 // -------------------------------------------------------------
-// DADOS REAIS OFICIAIS TERMOLUC
+// DADOS OFICIAIS TERMOLUC
 // -------------------------------------------------------------
 const INITIAL_TECHNICIANS: Technician[] = [
   {
@@ -117,6 +149,7 @@ const INITIAL_EQUIPMENT: Equipment[] = [
     type: 'Ar-condicionado Split Hi-Wall',
     brand: 'CARRIER',
     model: 'n sei',
+    address: 'Avenida Borges de Medeiros 3407/401',
     installation_location: 'Sala dutado',
     installation_date: '2026-09-01',
     created_by: 'Alesandro',
@@ -129,6 +162,7 @@ const INITIAL_EQUIPMENT: Equipment[] = [
     type: 'Ar-condicionado Split Hi-Wall',
     brand: 'CARRIER',
     model: 'n sei',
+    address: 'Avenida Borges de Medeiros 3407/401',
     installation_location: 'Sala TV',
     installation_date: '2026-09-01',
     created_by: 'Alesandro',
@@ -141,6 +175,7 @@ const INITIAL_EQUIPMENT: Equipment[] = [
     type: 'Ar-condicionado Split Hi-Wall',
     brand: 'CARRIER',
     model: 'n sei',
+    address: 'Avenida Borges de Medeiros 3407/401',
     installation_location: 'Suite',
     installation_date: '2026-09-01',
     created_by: 'Alesandro',
@@ -153,6 +188,7 @@ const INITIAL_EQUIPMENT: Equipment[] = [
     type: 'Ar-condicionado Split Hi-Wall',
     brand: 'CARRIER',
     model: 'n sei',
+    address: 'Avenida Borges de Medeiros 3407/401',
     installation_location: 'Quarto 2',
     installation_date: '2026-09-01',
     created_by: 'Alesandro',
@@ -165,6 +201,7 @@ const INITIAL_EQUIPMENT: Equipment[] = [
     type: 'Ar-condicionado Split Hi-Wall',
     brand: 'CARRIER',
     model: 'n sei',
+    address: 'Avenida Borges de Medeiros 3407/401',
     installation_location: 'Quarto 1',
     installation_date: '2026-09-01',
     created_by: 'Alesandro',
@@ -177,6 +214,7 @@ const INITIAL_EQUIPMENT: Equipment[] = [
     type: 'Ar-condicionado Split Hi-Wall',
     brand: 'SEI LA',
     model: 'teste',
+    address: 'Ipanema',
     installation_date: '2026-08-26',
     created_by: 'Alesandro',
     created_at: '2026-08-26T11:30:00.000Z',
@@ -188,6 +226,7 @@ const INITIAL_EQUIPMENT: Equipment[] = [
     type: 'Ar-condicionado Split Hi-Wall',
     brand: 'CONSUL',
     model: 'air master',
+    address: 'Madureira',
     installation_location: 'quarto',
     installation_date: '2026-08-26',
     created_by: 'Alesandro',
@@ -200,6 +239,7 @@ const INITIAL_EQUIPMENT: Equipment[] = [
     type: 'Ar-condicionado Split Hi-Wall',
     brand: 'SPRING 30K',
     model: 'samsung',
+    address: 'Madureira',
     installation_location: 'sala',
     installation_date: '2026-08-26',
     created_by: 'Alesandro',
@@ -231,7 +271,7 @@ function setStored<T>(key: string, data: T[]): void {
 }
 
 // -------------------------------------------------------------
-// CLIENTS API
+// CLIENTS API (Cloud-First com Supabase)
 // -------------------------------------------------------------
 export async function getClients(): Promise<Client[]> {
   if (isSupabaseConfigured && supabase) {
@@ -243,7 +283,16 @@ export async function getClients(): Promise<Client[]> {
 
       if (!error && data) {
         if (data.length > 0) {
+          setStored(STORAGE_KEY_CLIENTS, data);
           return data;
+        } else {
+          // Se Supabase estiver vazio, sincroniza automaticamente os clientes iniciais
+          await syncInitialSeedToSupabase();
+          const { data: seeded } = await supabase.from('clients').select('*').order('name', { ascending: true });
+          if (seeded && seeded.length > 0) {
+            setStored(STORAGE_KEY_CLIENTS, seeded);
+            return seeded;
+          }
         }
       } else if (error) {
         console.error('Erro ao buscar clientes no Supabase:', error);
@@ -252,6 +301,7 @@ export async function getClients(): Promise<Client[]> {
       console.error('Falha de conexão com Supabase:', err);
     }
   }
+
   const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS);
   return clients.sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -263,19 +313,18 @@ export async function getClientById(id: string): Promise<Client | null> {
         .from('clients')
         .select('*')
         .eq('id', id)
-        .single();
+        .maybeSingle();
+
       if (!error && data) return data;
-      if (error) console.warn('Supabase getClientById:', error.message);
     } catch {
       // Fallback
     }
   }
-  const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS);
+  const clients = await getClients();
   return clients.find(c => c.id === id) || null;
 }
 
 export async function createClient(clientData: Omit<Client, 'id' | 'created_at' | 'updated_at'>): Promise<Client> {
-  const fallbackId = `client-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
   const created_by = clientData.created_by || 'Alesandro';
 
   if (isSupabaseConfigured && supabase) {
@@ -311,6 +360,7 @@ export async function createClient(clientData: Omit<Client, 'id' | 'created_at' 
     }
   }
 
+  const fallbackId = `client-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
   const newClient: Client = {
     ...clientData,
     id: fallbackId,
@@ -330,7 +380,8 @@ export async function updateClient(id: string, updates: Partial<Client>): Promis
 
   if (isSupabaseConfigured && supabase) {
     try {
-      const { data, error } = await supabase
+      // 1. Tenta atualizar pelo ID exato
+      let { data } = await supabase
         .from('clients')
         .update({
           name: updates.name,
@@ -346,19 +397,40 @@ export async function updateClient(id: string, updates: Partial<Client>): Promis
         })
         .eq('id', id)
         .select()
-        .single();
+        .maybeSingle();
 
-      if (!error && data) {
+      // 2. Se não encontrou por ID (ex: cliente criado com ID local prévio), busca e atualiza pelo nome
+      if (!data && updates.name) {
+        const { data: byName } = await supabase
+          .from('clients')
+          .update({
+            name: updates.name,
+            document: updates.document,
+            phone: updates.phone,
+            email: updates.email,
+            address: updates.address,
+            address_2: updates.address_2,
+            address_3: updates.address_3,
+            notes: updates.notes,
+            image_url: updates.image_url,
+            updated_at,
+          })
+          .ilike('name', updates.name)
+          .select()
+          .maybeSingle();
+
+        data = byName;
+      }
+
+      if (data) {
         notifyDataChange('clients');
         const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS);
-        const idx = clients.findIndex(c => c.id === id);
+        const idx = clients.findIndex(c => c.id === id || c.id === data.id);
         if (idx !== -1) {
           clients[idx] = data;
           setStored(STORAGE_KEY_CLIENTS, clients);
         }
         return data;
-      } else if (error) {
-        console.error('Erro no Supabase ao atualizar cliente:', error);
       }
     } catch (err) {
       console.error('Erro de rede ao atualizar cliente no Supabase:', err);
@@ -367,7 +439,14 @@ export async function updateClient(id: string, updates: Partial<Client>): Promis
 
   const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS);
   const index = clients.findIndex(c => c.id === id);
-  if (index === -1) throw new Error('Cliente não encontrado');
+  if (index === -1) {
+    // Se não encontrou localmente, adiciona
+    const created = { ...updates, id, updated_at } as Client;
+    clients.unshift(created);
+    setStored(STORAGE_KEY_CLIENTS, clients);
+    notifyDataChange('clients');
+    return created;
+  }
   const updated = { ...clients[index], ...updates, updated_at };
   clients[index] = updated;
   setStored(STORAGE_KEY_CLIENTS, clients);
@@ -402,7 +481,7 @@ export async function deleteClient(id: string): Promise<boolean> {
 }
 
 // -------------------------------------------------------------
-// EQUIPMENT API
+// EQUIPMENT API (Cloud-First com Supabase)
 // -------------------------------------------------------------
 export async function getEquipment(): Promise<Equipment[]> {
   const clients = await getClients();
@@ -415,25 +494,29 @@ export async function getEquipment(): Promise<Equipment[]> {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!error && data && data.length > 0) {
-        return data.map((item: any) => {
-          const ids: string[] = item.client_ids && item.client_ids.length > 0
-            ? item.client_ids
-            : item.client_id ? [item.client_id] : [];
-          const linkedClients = ids.map(cid => clientMap.get(cid)).filter(Boolean) as Client[];
-          const names = linkedClients.map(c => c.name).join(' & ') || clientMap.get(item.client_id)?.name || 'Cliente';
-          const photos = item.images && item.images.length > 0
-            ? item.images
-            : item.image_url ? [item.image_url] : [];
+      if (!error && data) {
+        if (data.length > 0) {
+          const mapped = data.map((item: any) => {
+            const ids: string[] = item.client_ids && item.client_ids.length > 0
+              ? item.client_ids
+              : item.client_id ? [item.client_id] : [];
+            const linkedClients = ids.map(cid => clientMap.get(cid)).filter(Boolean) as Client[];
+            const names = linkedClients.map(c => c.name).join(' & ') || clientMap.get(item.client_id)?.name || 'Cliente';
+            const photos = item.images && item.images.length > 0
+              ? item.images
+              : item.image_url ? [item.image_url] : [];
 
-          return {
-            ...item,
-            client_ids: ids,
-            client_name: names,
-            clients: linkedClients,
-            images: photos,
-          };
-        });
+            return {
+              ...item,
+              client_ids: ids,
+              client_name: names,
+              clients: linkedClients,
+              images: photos,
+            };
+          });
+          setStored(STORAGE_KEY_EQUIPMENT, mapped);
+          return mapped;
+        }
       } else if (error) {
         console.error('Erro ao buscar equipamentos no Supabase:', error);
       }
@@ -539,7 +622,7 @@ export async function updateEquipment(id: string, updates: Partial<Equipment>): 
 
   if (isSupabaseConfigured && supabase) {
     try {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('equipment')
         .update({
           ...(primaryClientId ? { client_id: primaryClientId } : {}),
@@ -559,9 +642,9 @@ export async function updateEquipment(id: string, updates: Partial<Equipment>): 
         })
         .eq('id', id)
         .select()
-        .single();
+        .maybeSingle();
 
-      if (!error && data) {
+      if (data) {
         notifyDataChange('equipment');
         return (await getEquipmentById(id)) || data;
       } else if (error) {
@@ -1049,12 +1132,63 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   };
 }
 
+// Sincronização de boot automática caso Supabase esteja vazio
+async function syncInitialSeedToSupabase() {
+  if (!isSupabaseConfigured || !supabase) return;
+  try {
+    // Insere técnicos
+    for (const t of INITIAL_TECHNICIANS) {
+      const { data: ex } = await supabase.from('technicians').select('id').eq('name', t.name).maybeSingle();
+      if (!ex) {
+        await supabase.from('technicians').insert([{ name: t.name, phone: t.phone, email: t.email, specialty: t.specialty, active: t.active }]);
+      }
+    }
+    // Insere clientes
+    const cMap = new Map<string, string>();
+    for (const c of INITIAL_CLIENTS) {
+      let { data: ex } = await supabase.from('clients').select('id').eq('name', c.name).maybeSingle();
+      if (!ex) {
+        const { data: created } = await supabase.from('clients').insert([{
+          name: c.name,
+          document: c.document,
+          phone: c.phone,
+          email: c.email,
+          address: c.address,
+          created_by: c.created_by || 'Alesandro',
+        }]).select('id').single();
+        ex = created;
+      }
+      if (ex) cMap.set(c.id, ex.id);
+    }
+    // Insere equipamentos
+    for (const e of INITIAL_EQUIPMENT) {
+      const realClientId = cMap.get(e.client_id);
+      if (!realClientId) continue;
+      const { data: ex } = await supabase.from('equipment').select('id').eq('installation_location', e.installation_location).eq('client_id', realClientId).maybeSingle();
+      if (!ex) {
+        await supabase.from('equipment').insert([{
+          client_id: realClientId,
+          type: e.type,
+          brand: e.brand,
+          model: e.model,
+          address: e.address,
+          installation_location: e.installation_location,
+          installation_date: e.installation_date,
+          created_by: e.created_by || 'Alesandro',
+        }]);
+      }
+    }
+  } catch (err) {
+    console.error('Erro na sincronização de boot:', err);
+  }
+}
+
 // -------------------------------------------------------------
-// SINCRONIZAÇÃO COMPLETA LOCAL -> SUPABASE POSTGRESQL
+// SINCRONIZAÇÃO COMPLETA MANUAL/PAINEL -> SUPABASE POSTGRESQL
 // -------------------------------------------------------------
 export async function syncAllDataToSupabase(): Promise<{ success: boolean; message: string }> {
   if (!isSupabaseConfigured || !supabase) {
-    return { success: false, message: 'Supabase não está configurado no arquivo .env' };
+    return { success: false, message: 'Supabase não está configurado.' };
   }
 
   try {
@@ -1094,13 +1228,28 @@ export async function syncAllDataToSupabase(): Promise<{ success: boolean; messa
     // 2. Sincroniza Clientes
     const clientIdMap = new Map<string, string>();
     for (const c of clients) {
-      const { data: existing } = await supabase
+      let { data: existing } = await supabase
         .from('clients')
         .select('id')
-        .eq('name', c.name)
+        .ilike('name', c.name)
         .maybeSingle();
 
       if (existing) {
+        // Atualiza com os dados mais recentes
+        await supabase
+          .from('clients')
+          .update({
+            document: c.document,
+            phone: c.phone,
+            email: c.email,
+            address: c.address,
+            address_2: c.address_2,
+            address_3: c.address_3,
+            notes: c.notes,
+            image_url: c.image_url,
+          })
+          .eq('id', existing.id);
+
         clientIdMap.set(c.id, existing.id);
       } else {
         const { data: created, error } = await supabase
@@ -1138,6 +1287,22 @@ export async function syncAllDataToSupabase(): Promise<{ success: boolean; messa
         .maybeSingle();
 
       if (existing) {
+        await supabase
+          .from('equipment')
+          .update({
+            type: e.type,
+            brand: e.brand,
+            serial_number: e.serial_number,
+            capacity: e.capacity,
+            address: e.address,
+            installation_location: e.installation_location,
+            installation_date: e.installation_date || null,
+            notes: e.notes,
+            image_url: e.image_url || (e.images && e.images[0]) || null,
+            images: e.images || [],
+          })
+          .eq('id', existing.id);
+
         equipIdMap.set(e.id, existing.id);
       } else {
         const { data: created, error } = await supabase
@@ -1149,6 +1314,7 @@ export async function syncAllDataToSupabase(): Promise<{ success: boolean; messa
             model: e.model,
             serial_number: e.serial_number,
             capacity: e.capacity,
+            address: e.address,
             installation_location: e.installation_location,
             installation_date: e.installation_date || null,
             notes: e.notes,
@@ -1200,7 +1366,7 @@ export async function syncAllDataToSupabase(): Promise<{ success: boolean; messa
     notifyDataChange('clients');
     notifyDataChange('equipment');
     notifyDataChange('orders');
-    return { success: true, message: 'Dados sincronizados com o Supabase com sucesso!' };
+    return { success: true, message: 'Base de dados 100% sincronizada com a nuvem!' };
   } catch (err: any) {
     console.error('Erro durante a sincronização:', err);
     return { success: false, message: err.message || 'Erro ao sincronizar com o banco de dados.' };

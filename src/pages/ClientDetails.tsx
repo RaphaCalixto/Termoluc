@@ -30,6 +30,7 @@ import {
   deleteClient,
   deleteEquipment,
   deleteServiceOrder,
+  subscribeToDataChanges,
 } from '../services/db';
 import { ClientFormModal } from '../components/clients/ClientFormModal';
 import { EquipmentFormModal } from '../components/equipment/EquipmentFormModal';
@@ -98,6 +99,12 @@ export const ClientDetails: React.FC = () => {
 
   useEffect(() => {
     loadClientData();
+    const unsubscribe = subscribeToDataChanges(() => {
+      loadClientData();
+    });
+    return () => {
+      unsubscribe();
+    };
   }, [id]);
 
   const handleDeleteConfirm = async () => {

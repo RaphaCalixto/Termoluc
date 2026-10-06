@@ -14,7 +14,7 @@ import {
   Building2
 } from 'lucide-react';
 import { Client, Equipment } from '../types';
-import { getClients, getEquipment, deleteClient } from '../services/db';
+import { getClients, getEquipment, deleteClient, subscribeToDataChanges } from '../services/db';
 import { ClientFormModal } from '../components/clients/ClientFormModal';
 import { DeleteConfirmModal } from '../components/ui/DeleteConfirmModal';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -55,6 +55,12 @@ export const Clients: React.FC = () => {
 
   useEffect(() => {
     loadData();
+    const unsubscribe = subscribeToDataChanges(() => {
+      loadData();
+    });
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const filteredClients = clients.filter(c => {

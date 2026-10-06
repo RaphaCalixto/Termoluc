@@ -18,7 +18,7 @@ import {
   X
 } from 'lucide-react';
 import { Equipment, Client } from '../types';
-import { getEquipment, getClients, deleteEquipment } from '../services/db';
+import { getEquipment, getClients, deleteEquipment, subscribeToDataChanges } from '../services/db';
 import { EquipmentFormModal } from '../components/equipment/EquipmentFormModal';
 import { ServiceOrderFormModal } from '../components/orders/ServiceOrderFormModal';
 import { DeleteConfirmModal } from '../components/ui/DeleteConfirmModal';
@@ -70,6 +70,12 @@ export const EquipmentPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
+    const unsubscribe = subscribeToDataChanges(() => {
+      loadData();
+    });
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const handleDeleteConfirm = async () => {

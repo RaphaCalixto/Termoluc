@@ -14,7 +14,7 @@ import {
   Phone,
   Eye
 } from 'lucide-react';
-import { getDashboardMetrics, getServiceOrders, getClients } from '../services/db';
+import { getDashboardMetrics, getServiceOrders, getClients, subscribeToDataChanges } from '../services/db';
 import { DashboardMetrics, ServiceOrder, Client } from '../types';
 import { StatusBadge } from '../components/ui/Badge';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
@@ -56,6 +56,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   useEffect(() => {
     loadData();
+    const unsubscribe = subscribeToDataChanges(() => {
+      loadData();
+    });
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   if (loading || !metrics) {

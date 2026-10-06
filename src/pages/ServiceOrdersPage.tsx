@@ -19,6 +19,7 @@ import {
   getClients,
   getTechnicians,
   deleteServiceOrder,
+  subscribeToDataChanges,
 } from '../services/db';
 import { ServiceOrderFormModal } from '../components/orders/ServiceOrderFormModal';
 import { ServiceOrderDetailsModal } from '../components/orders/ServiceOrderDetailsModal';
@@ -72,6 +73,12 @@ export const ServiceOrdersPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
+    const unsubscribe = subscribeToDataChanges(() => {
+      loadData();
+    });
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   // Sincroniza query params
