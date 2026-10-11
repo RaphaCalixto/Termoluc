@@ -97,3 +97,33 @@ export interface DashboardMetrics {
   inProgressOrders: number;
   monthOrders: number;
 }
+
+export type ScheduleStatus = 'Agendado' | 'Confirmado' | 'Em andamento' | 'Concluído' | 'Cancelado';
+
+export interface Schedule {
+  id: string;
+  client_id?: string;
+  client_name: string;
+  client_phone?: string;
+  equipment_id?: string | null;
+  equipment_name?: string;
+  technician_id?: string;
+  technician_name?: string;
+  service_date: string; // YYYY-MM-DD
+  service_time: string; // HH:mm (ex: '09:00')
+  service_type: string; // 'Instalação', 'Manutenção Preventiva', etc.
+  description?: string;
+  address?: string;
+  status: ScheduleStatus;
+  value?: number;
+  notes?: string;
+  created_by?: string;
+  created_at: string;
+  updated_at?: string;
+
+  // Relacionamentos expandidos
+  client?: Client;
+  equipment?: Equipment | null;
+  technician?: Technician;
+}
+

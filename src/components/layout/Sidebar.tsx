@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
+  Calendar,
   Users,
   Wrench,
   FileText,
@@ -32,6 +33,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+    { name: 'Agenda', path: '/schedule', icon: Calendar },
     { name: 'Clientes', path: '/clients', icon: Users },
     { name: 'Equipamentos', path: '/equipment', icon: Wrench },
     { name: 'Ordens de Serviço', path: '/orders', icon: FileText },

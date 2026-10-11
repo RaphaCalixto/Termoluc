@@ -158,6 +158,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
               Novo Cliente
             </button>
             <button
+              onClick={() => navigate('/schedule')}
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/15 transition-all"
+            >
+              <Calendar className="w-4 h-4 text-termoluc-300" />
+              Agenda
+            </button>
+            <button
               onClick={() => navigate('/orders')}
               className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/15 transition-all"
             >

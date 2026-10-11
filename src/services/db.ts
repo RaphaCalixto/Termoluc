@@ -1,11 +1,12 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { Client, Equipment, Technician, ServiceOrder, ServiceOrderImage, DashboardMetrics } from '../types';
+import { Client, Equipment, Technician, ServiceOrder, ServiceOrderImage, DashboardMetrics, Schedule } from '../types';
 
 const STORAGE_KEY_CLIENTS = 'termoluc_clients_v4';
 const STORAGE_KEY_EQUIPMENT = 'termoluc_equipment_v4';
 const STORAGE_KEY_TECHNICIANS = 'termoluc_technicians_v4';
 const STORAGE_KEY_ORDERS = 'termoluc_service_orders_v4';
 const STORAGE_KEY_ORDER_IMAGES = 'termoluc_order_images_v4';
+const STORAGE_KEY_SCHEDULES = 'termoluc_schedules_v1';
 
 // BroadcastChannel para sincronização rápida local
 const syncChannel = typeof window !== 'undefined' && 'BroadcastChannel' in window
@@ -1117,6 +1118,194 @@ export async function deleteOrderImage(imageId: string): Promise<boolean> {
   const images = getStored<ServiceOrderImage>(STORAGE_KEY_ORDER_IMAGES, INITIAL_ORDER_IMAGES);
   setStored(STORAGE_KEY_ORDER_IMAGES, images.filter(img => img.id !== imageId));
   notifyDataChange('orders');
+  return true;
+}
+
+// -------------------------------------------------------------
+// SCHEDULES (AGENDA DE SERVIÇOS) API
+// -------------------------------------------------------------
+export async function getSchedules(): Promise<Schedule[]> {
+  const [clients, equipment, technicians] = await Promise.all([
+    getClients(),
+    getEquipment(),
+    getTechnicians(),
+  ]);
+  const clientMap = new Map(clients.map(c => [c.id, c]));
+  const equipmentMap = new Map(equipment.map(e => [e.id, e]));
+  const techMap = new Map(technicians.map(t => [t.id, t]));
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('schedules')
+        .select('*')
+        .order('service_date', { ascending: true })
+        .order('service_time', { ascending: true });
+
+      if (!error && data) {
+        const mapped = data.map((item: any) => ({
+          ...item,
+          client: item.client_id ? clientMap.get(item.client_id) : undefined,
+          equipment: item.equipment_id ? equipmentMap.get(item.equipment_id) : undefined,
+          technician: item.technician_id ? techMap.get(item.technician_id) : undefined,
+        }));
+        setStored(STORAGE_KEY_SCHEDULES, mapped);
+        return mapped;
+      }
+    } catch (err) {
+      console.warn('Fallback local para agenda:', err);
+    }
+  }
+
+  const schedules = getStored<Schedule>(STORAGE_KEY_SCHEDULES, []);
+  return schedules
+    .map(s => ({
+      ...s,
+      client: s.client_id ? clientMap.get(s.client_id) : undefined,
+      equipment: s.equipment_id ? equipmentMap.get(s.equipment_id) : undefined,
+      technician: s.technician_id ? techMap.get(s.technician_id) : undefined,
+    }))
+    .sort((a, b) => {
+      const dateCmp = a.service_date.localeCompare(b.service_date);
+      if (dateCmp !== 0) return dateCmp;
+      return (a.service_time || '').localeCompare(b.service_time || '');
+    });
+}
+
+export async function getScheduleById(id: string): Promise<Schedule | null> {
+  const all = await getSchedules();
+  return all.find(s => s.id === id) || null;
+}
+
+export async function createSchedule(data: Omit<Schedule, 'id' | 'created_at' | 'updated_at' | 'client' | 'equipment' | 'technician'>): Promise<Schedule> {
+  const created_by = data.created_by || 'Alesandro';
+  const cleanDate = data.service_date.trim();
+  const cleanTime = (data.service_time || '09:00').trim();
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data: created, error } = await supabase
+        .from('schedules')
+        .insert([{
+          client_id: data.client_id || null,
+          client_name: data.client_name,
+          client_phone: data.client_phone || null,
+          equipment_id: data.equipment_id || null,
+          equipment_name: data.equipment_name || null,
+          technician_id: data.technician_id || null,
+          technician_name: data.technician_name || null,
+          service_date: cleanDate,
+          service_time: cleanTime,
+          service_type: data.service_type,
+          description: data.description || null,
+          address: data.address || null,
+          status: data.status || 'Agendado',
+          value: data.value || null,
+          notes: data.notes || null,
+          created_by,
+        }])
+        .select()
+        .single();
+
+      if (!error && created) {
+        notifyDataChange('schedules');
+        const list = getStored<Schedule>(STORAGE_KEY_SCHEDULES, []);
+        list.push(created);
+        setStored(STORAGE_KEY_SCHEDULES, list);
+        return (await getScheduleById(created.id)) || created;
+      } else if (error) {
+        console.error('Erro no Supabase ao agendar serviço:', error);
+      }
+    } catch (err) {
+      console.warn('Erro ao salvar agendamento no Supabase:', err);
+    }
+  }
+
+  const fallbackId = `sched-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+  const newSchedule: Schedule = {
+    ...data,
+    id: fallbackId,
+    service_date: cleanDate,
+    service_time: cleanTime,
+    created_by,
+    created_at: new Date().toISOString(),
+  };
+
+  const list = getStored<Schedule>(STORAGE_KEY_SCHEDULES, []);
+  list.push(newSchedule);
+  setStored(STORAGE_KEY_SCHEDULES, list);
+  notifyDataChange('schedules');
+  return (await getScheduleById(fallbackId)) || newSchedule;
+}
+
+export async function updateSchedule(id: string, updates: Partial<Schedule>): Promise<Schedule> {
+  const updated_at = new Date().toISOString();
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const updatePayload: any = { updated_at };
+      if (updates.client_id !== undefined) updatePayload.client_id = updates.client_id || null;
+      if (updates.client_name !== undefined) updatePayload.client_name = updates.client_name;
+      if (updates.client_phone !== undefined) updatePayload.client_phone = updates.client_phone || null;
+      if (updates.equipment_id !== undefined) updatePayload.equipment_id = updates.equipment_id || null;
+      if (updates.equipment_name !== undefined) updatePayload.equipment_name = updates.equipment_name || null;
+      if (updates.technician_id !== undefined) updatePayload.technician_id = updates.technician_id || null;
+      if (updates.technician_name !== undefined) updatePayload.technician_name = updates.technician_name || null;
+      if (updates.service_date !== undefined) updatePayload.service_date = updates.service_date;
+      if (updates.service_time !== undefined) updatePayload.service_time = updates.service_time;
+      if (updates.service_type !== undefined) updatePayload.service_type = updates.service_type;
+      if (updates.description !== undefined) updatePayload.description = updates.description || null;
+      if (updates.address !== undefined) updatePayload.address = updates.address || null;
+      if (updates.status !== undefined) updatePayload.status = updates.status;
+      if (updates.value !== undefined) updatePayload.value = updates.value || null;
+      if (updates.notes !== undefined) updatePayload.notes = updates.notes || null;
+
+      const { data, error } = await supabase
+        .from('schedules')
+        .update(updatePayload)
+        .eq('id', id)
+        .select()
+        .maybeSingle();
+
+      if (!error && data) {
+        notifyDataChange('schedules');
+        return (await getScheduleById(id)) || data;
+      }
+    } catch (err) {
+      console.warn('Erro ao atualizar agendamento no Supabase:', err);
+    }
+  }
+
+  const list = getStored<Schedule>(STORAGE_KEY_SCHEDULES, []);
+  const index = list.findIndex(s => s.id === id);
+  if (index === -1) throw new Error('Agendamento não encontrado');
+
+  list[index] = {
+    ...list[index],
+    ...updates,
+    updated_at,
+  };
+  setStored(STORAGE_KEY_SCHEDULES, list);
+  notifyDataChange('schedules');
+  return (await getScheduleById(id)) || list[index];
+}
+
+export async function deleteSchedule(id: string): Promise<boolean> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { error } = await supabase.from('schedules').delete().eq('id', id);
+      if (!error) {
+        notifyDataChange('schedules');
+      }
+    } catch (err) {
+      console.warn('Erro ao excluir agendamento no Supabase:', err);
+    }
+  }
+
+  const list = getStored<Schedule>(STORAGE_KEY_SCHEDULES, []);
+  const filtered = list.filter(s => s.id !== id);
+  setStored(STORAGE_KEY_SCHEDULES, filtered);
+  notifyDataChange('schedules');
   return true;
 }
 

@@ -98,6 +98,29 @@ CREATE TABLE IF NOT EXISTS public.service_order_images (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 8. Tabela de Agenda de Serviços
+CREATE TABLE IF NOT EXISTS public.schedules (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    client_id UUID REFERENCES public.clients(id) ON DELETE SET NULL,
+    client_name TEXT NOT NULL,
+    client_phone TEXT,
+    equipment_id UUID REFERENCES public.equipment(id) ON DELETE SET NULL,
+    equipment_name TEXT,
+    technician_id UUID REFERENCES public.technicians(id) ON DELETE SET NULL,
+    technician_name TEXT,
+    service_date DATE NOT NULL,
+    service_time TEXT NOT NULL,
+    service_type TEXT NOT NULL,
+    description TEXT,
+    address TEXT,
+    status TEXT NOT NULL DEFAULT 'Agendado' CHECK (status IN ('Agendado', 'Confirmado', 'Em andamento', 'Concluído', 'Cancelado')),
+    value NUMERIC(10, 2),
+    notes TEXT,
+    created_by TEXT DEFAULT 'Alesandro',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ==============================================================================
 -- TRIGGER PARA GERAR NÚMERO DE OS AUTOMÁTICO (ex: OS-2026-1001)
 -- ==============================================================================
@@ -126,6 +149,7 @@ ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.equipment ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.service_orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.service_order_images ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.schedules ENABLE ROW LEVEL SECURITY;
 
 -- Limpar policies antigas se existirem
 DROP POLICY IF EXISTS "Full access to profiles" ON public.profiles;
@@ -134,6 +158,7 @@ DROP POLICY IF EXISTS "Full access to clients" ON public.clients;
 DROP POLICY IF EXISTS "Full access to equipment" ON public.equipment;
 DROP POLICY IF EXISTS "Full access to service_orders" ON public.service_orders;
 DROP POLICY IF EXISTS "Full access to service_order_images" ON public.service_order_images;
+DROP POLICY IF EXISTS "Full access to schedules" ON public.schedules;
 
 DROP POLICY IF EXISTS "Authenticated users have full access to profiles" ON public.profiles;
 DROP POLICY IF EXISTS "Authenticated users have full access to technicians" ON public.technicians;
@@ -141,6 +166,7 @@ DROP POLICY IF EXISTS "Authenticated users have full access to clients" ON publi
 DROP POLICY IF EXISTS "Authenticated users have full access to equipment" ON public.equipment;
 DROP POLICY IF EXISTS "Authenticated users have full access to service_orders" ON public.service_orders;
 DROP POLICY IF EXISTS "Authenticated users have full access to service_order_images" ON public.service_order_images;
+DROP POLICY IF EXISTS "Authenticated users have full access to schedules" ON public.schedules;
 
 -- Políticas universais para a aplicação Termoluc (anon e authenticated)
 CREATE POLICY "Full access to profiles" ON public.profiles FOR ALL TO public USING (true) WITH CHECK (true);
@@ -149,6 +175,7 @@ CREATE POLICY "Full access to clients" ON public.clients FOR ALL TO public USING
 CREATE POLICY "Full access to equipment" ON public.equipment FOR ALL TO public USING (true) WITH CHECK (true);
 CREATE POLICY "Full access to service_orders" ON public.service_orders FOR ALL TO public USING (true) WITH CHECK (true);
 CREATE POLICY "Full access to service_order_images" ON public.service_order_images FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Full access to schedules" ON public.schedules FOR ALL TO public USING (true) WITH CHECK (true);
 
 -- ==============================================================================
 -- STORAGE BUCKETS (Fotos de clientes, equipamentos e OS)

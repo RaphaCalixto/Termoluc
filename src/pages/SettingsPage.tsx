@@ -47,6 +47,7 @@ export const SettingsPage: React.FC = () => {
         technicians: JSON.parse(localStorage.getItem('termoluc_technicians_v4') || localStorage.getItem('termoluc_technicians_v2') || '[]'),
         service_orders: JSON.parse(localStorage.getItem('termoluc_service_orders_v4') || localStorage.getItem('termoluc_service_orders_v2') || '[]'),
         order_images: JSON.parse(localStorage.getItem('termoluc_order_images_v4') || localStorage.getItem('termoluc_order_images_v2') || '[]'),
+        schedules: JSON.parse(localStorage.getItem('termoluc_schedules_v1') || '[]'),
       };
 
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
@@ -76,6 +77,7 @@ export const SettingsPage: React.FC = () => {
         if (parsed.technicians) localStorage.setItem('termoluc_technicians_v4', JSON.stringify(parsed.technicians));
         if (parsed.service_orders) localStorage.setItem('termoluc_service_orders_v4', JSON.stringify(parsed.service_orders));
         if (parsed.order_images) localStorage.setItem('termoluc_order_images_v4', JSON.stringify(parsed.order_images));
+        if (parsed.schedules) localStorage.setItem('termoluc_schedules_v1', JSON.stringify(parsed.schedules));
 
         success('Backup importado localmente! Enviando para o Supabase...');
         await syncAllDataToSupabase();

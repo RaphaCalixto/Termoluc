@@ -11,6 +11,7 @@ import { ClientDetails } from './pages/ClientDetails';
 import { EquipmentPage } from './pages/EquipmentPage';
 import { ServiceOrdersPage } from './pages/ServiceOrdersPage';
 import { TechniciansPage } from './pages/TechniciansPage';
+import { SchedulePage } from './pages/SchedulePage';
 import { SettingsPage } from './pages/SettingsPage';
 
 import { ServiceOrderFormModal } from './components/orders/ServiceOrderFormModal';
@@ -87,6 +88,8 @@ const AppContent: React.FC = () => {
               />
             }
           />
+          <Route path="/schedule" element={<SchedulePage key={refreshKey} />} />
+          <Route path="/agenda" element={<Navigate to="/schedule" replace />} />
           <Route path="/clients" element={<Clients key={refreshKey} />} />
           <Route path="/clients/:id" element={<ClientDetails key={refreshKey} />} />
           <Route path="/equipment" element={<EquipmentPage key={refreshKey} />} />
