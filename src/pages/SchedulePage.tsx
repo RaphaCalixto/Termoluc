@@ -11,10 +11,7 @@ import {
   DollarSign,
   Edit2,
   Trash2,
-  MessageCircle,
-  Copy,
-  Check,
-  Code2
+  MessageCircle
 } from 'lucide-react';
 import { Schedule, ScheduleStatus } from '../types';
 import {
@@ -27,7 +24,6 @@ import { ScheduleFormModal } from '../components/schedule/ScheduleFormModal';
 import { DeleteConfirmModal } from '../components/ui/DeleteConfirmModal';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { useToast } from '../context/ToastContext';
-import { Modal } from '../components/ui/Modal';
 
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -71,8 +67,6 @@ export const SchedulePage: React.FC = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<Schedule | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [sqlModalOpen, setSqlModalOpen] = useState(false);
-  const [copiedSql, setCopiedSql] = useState(false);
 
   const loadData = async () => {
     try {
@@ -237,50 +231,6 @@ export const SchedulePage: React.FC = () => {
     return `${parseInt(d, 10)} de ${monthName}`;
   }, [selectedDate, todayStr]);
 
-  const supabaseSqlCode = `-- ==============================================================================
--- CRIAÇÃO DA TABELA DE AGENDA DE SERVIÇOS NO SUPABASE
--- Execute este script no SQL Editor do Supabase (https://supabase.com)
--- ==============================================================================
-
-CREATE TABLE IF NOT EXISTS public.schedules (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    client_id UUID REFERENCES public.clients(id) ON DELETE SET NULL,
-    client_name TEXT NOT NULL,
-    client_phone TEXT,
-    equipment_id UUID REFERENCES public.equipment(id) ON DELETE SET NULL,
-    equipment_name TEXT,
-    technician_id UUID REFERENCES public.technicians(id) ON DELETE SET NULL,
-    technician_name TEXT,
-    service_date DATE NOT NULL,
-    service_time TEXT NOT NULL,
-    service_type TEXT NOT NULL,
-    description TEXT,
-    address TEXT,
-    status TEXT NOT NULL DEFAULT 'Agendado' CHECK (status IN ('Agendado', 'Confirmado', 'Em andamento', 'Concluído', 'Cancelado')),
-    value NUMERIC(10, 2),
-    notes TEXT,
-    created_by TEXT DEFAULT 'Alesandro',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Habilitar Row Level Security (RLS)
-ALTER TABLE public.schedules ENABLE ROW LEVEL SECURITY;
-
--- Políticas de Acesso Total
-DROP POLICY IF EXISTS "Full access to schedules" ON public.schedules;
-CREATE POLICY "Full access to schedules" ON public.schedules FOR ALL TO public USING (true) WITH CHECK (true);
-
--- Habilitar sincronização em tempo real (Supabase Realtime)
-ALTER PUBLICATION supabase_realtime ADD TABLE public.schedules;`;
-
-  const handleCopySql = () => {
-    navigator.clipboard.writeText(supabaseSqlCode);
-    setCopiedSql(true);
-    success('Código SQL copiado para a área de transferência!');
-    setTimeout(() => setCopiedSql(false), 2500);
-  };
-
   return (
     <div className="space-y-6">
       {/* Top Header */}
@@ -295,18 +245,6 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.schedules;`;
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-          {/* Botão Código SQL */}
-          <button
-            type="button"
-            onClick={() => setSqlModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition-all"
-            title="Código SQL para o Supabase"
-          >
-            <Code2 className="w-4 h-4 text-termoluc-600" />
-            <span className="hidden sm:inline">Código SQL Supabase</span>
-            <span className="sm:hidden">SQL</span>
-          </button>
-
           {/* Botão Novo Agendamento */}
           <button
             type="button"
@@ -652,51 +590,6 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.schedules;`;
         loading={deleting}
       />
 
-      {/* Modal com o Script SQL para o Supabase */}
-      <Modal
-        isOpen={sqlModalOpen}
-        onClose={() => setSqlModalOpen(false)}
-        title="Código SQL para o Supabase"
-        subtitle="Execute este comando no SQL Editor do seu projeto Supabase para habilitar a tabela de agendamentos"
-        maxWidth="lg"
-      >
-        <div className="space-y-4">
-          <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-900 leading-relaxed">
-            ℹ️ Copie o comando abaixo, abra seu painel do <strong>Supabase &gt; SQL Editor</strong>, cole e clique em <strong>Run</strong>. A tabela <code className="font-bold">schedules</code> será criada com todas as permissões de segurança e sincronização em tempo real ativas.
-          </div>
-
-          <div className="relative">
-            <pre className="p-4 bg-slate-900 text-slate-100 rounded-2xl text-xs font-mono overflow-x-auto max-h-80 leading-relaxed">
-              {supabaseSqlCode}
-            </pre>
-            <button
-              type="button"
-              onClick={handleCopySql}
-              className="absolute top-3 right-3 px-3 py-1.5 rounded-xl bg-termoluc-600 hover:bg-termoluc-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-md transition-all active:scale-95"
-            >
-              {copiedSql ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-              {copiedSql ? 'Copiado!' : 'Copiar SQL'}
-            </button>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => setSqlModalOpen(false)}
-              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all"
-            >
-              Fechar
-            </button>
-            <button
-              type="button"
-              onClick={handleCopySql}
-              className="px-4 py-2 rounded-xl bg-termoluc-600 hover:bg-termoluc-700 text-white text-xs font-bold transition-all"
-            >
-              {copiedSql ? 'Copiado!' : 'Copiar Código SQL'}
-            </button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 };
