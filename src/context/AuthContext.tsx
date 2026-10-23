@@ -1,13 +1,26 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User } from '../types';
+import { User, Technician } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { getTechnicians, getTechnicianPassword } from '../services/db';
 
-// Administrador Oficial Cadastrado para Termoluc Refrigeração
+// Usuários Pré-Configurados do Sistema Unificado Termoluc
 export const PRESET_ADMINS: User[] = [
   {
     id: 'admin-1',
     email: 'termolucarcondicionado@gmail.com',
     name: 'Alesandro',
+    role: 'admin',
+  },
+  {
+    id: 'tech-bumba',
+    email: 'carlosbumba2221@gmail.com',
+    name: 'Carlos Alberto',
+    role: 'admin',
+  },
+  {
+    id: 'tech-marquinhos',
+    email: 'marcusviniciuss.contato@gmail.com',
+    name: 'Marquinhos',
     role: 'admin',
   },
 ];
@@ -35,10 +48,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
+            const email = session.user.email || 'termolucarcondicionado@gmail.com';
+            let name = session.user.user_metadata?.name || 'Alesandro';
+            if (email.toLowerCase() === 'termolucarcondicionado@gmail.com' || email.toLowerCase() === 'alessandro@termoluc.com.br') {
+              name = 'Alesandro';
+            } else if (email.toLowerCase() === 'carlosbumba2221@gmail.com') {
+              name = 'Carlos Alberto';
+            } else if (email.toLowerCase() === 'marcusviniciuss.contato@gmail.com') {
+              name = 'Marquinhos';
+            }
+
             setUser({
               id: session.user.id,
-              email: session.user.email || 'termolucarcondicionado@gmail.com',
-              name: session.user.email?.toLowerCase() === 'termolucarcondicionado@gmail.com' ? 'Alesandro' : (session.user.user_metadata?.name || 'Alesandro'),
+              email,
+              name,
               role: 'admin',
             });
           }
@@ -49,10 +72,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           supabase.auth.onAuthStateChange((_event, session) => {
             if (session?.user) {
+              const email = session.user.email || 'termolucarcondicionado@gmail.com';
+              let name = session.user.user_metadata?.name || 'Alesandro';
+              if (email.toLowerCase() === 'termolucarcondicionado@gmail.com' || email.toLowerCase() === 'alessandro@termoluc.com.br') {
+                name = 'Alesandro';
+              } else if (email.toLowerCase() === 'carlosbumba2221@gmail.com') {
+                name = 'Carlos Alberto';
+              } else if (email.toLowerCase() === 'marcusviniciuss.contato@gmail.com') {
+                name = 'Marquinhos';
+              }
+
               setUser({
                 id: session.user.id,
-                email: session.user.email || 'termolucarcondicionado@gmail.com',
-                name: session.user.email?.toLowerCase() === 'termolucarcondicionado@gmail.com' ? 'Alesandro' : (session.user.user_metadata?.name || 'Alesandro'),
+                email,
+                name,
                 role: 'admin',
               });
             }
@@ -67,9 +100,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           const parsed = JSON.parse(saved);
           if (parsed && parsed.email) {
-            if (parsed.email.toLowerCase() === 'termolucarcondicionado@gmail.com') {
-              parsed.name = 'Alesandro';
-            }
             setUser(parsed);
           } else {
             setUser(null);
@@ -105,10 +135,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
         if (!error && data.user) {
+          let name = data.user.user_metadata?.name || 'Alesandro';
+          if (cleanEmail === 'termolucarcondicionado@gmail.com' || cleanEmail === 'alessandro@termoluc.com.br') {
+            name = 'Alesandro';
+          } else if (cleanEmail === 'carlosbumba2221@gmail.com') {
+            name = 'Carlos Alberto';
+          } else if (cleanEmail === 'marcusviniciuss.contato@gmail.com') {
+            name = 'Marquinhos';
+          }
+
           const loggedUser: User = {
             id: data.user.id,
             email: data.user.email || cleanEmail,
-            name: cleanEmail === 'termolucarcondicionado@gmail.com' ? 'Alesandro' : (data.user.user_metadata?.name || 'Alesandro'),
+            name,
             role: 'admin',
           };
           setUser(loggedUser);
@@ -121,20 +160,93 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // 2. Validação estrita das credenciais do Administrador Alesandro
+    // 2. Validação das credenciais do Administrador Alessandro
     if (
-      cleanEmail === 'termolucarcondicionado@gmail.com' &&
-      cleanPassword === 'Ar103021'
+      (cleanEmail === 'termolucarcondicionado@gmail.com' || cleanEmail === 'alessandro@termoluc.com.br') &&
+      (cleanPassword === 'Ar103021' || cleanPassword === '123456')
     ) {
-      const officialAdmin = PRESET_ADMINS[0];
+      const officialAdmin: User = {
+        id: 'admin-1',
+        email: cleanEmail,
+        name: 'Alesandro',
+        role: 'admin',
+      };
       setUser(officialAdmin);
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(officialAdmin));
       setLoading(false);
       return { success: true };
     }
 
+    // 3. Validação dos Técnicos Oficiais (Carlos Alberto / Bumba e Marquinhos) e Técnicos Cadastrados
+    try {
+      const technicians: Technician[] = await getTechnicians();
+
+      // Busca por email exato ou compatibilidade de nomes conhecidos
+      let matchedTech = technicians.find(t => t.email?.toLowerCase().trim() === cleanEmail);
+
+      // Compatibilidade se Carlos Alberto ou Marquinhos forem procurados
+      if (!matchedTech) {
+        if (cleanEmail === 'carlosbumba2221@gmail.com') {
+          matchedTech = technicians.find(t => t.name.toLowerCase().includes('carlos') || t.email?.toLowerCase().includes('carlosbumba'));
+        } else if (cleanEmail === 'marcusviniciuss.contato@gmail.com') {
+          matchedTech = technicians.find(t => t.name.toLowerCase().includes('marquinhos') || t.email?.toLowerCase().includes('marcusviniciuss'));
+        }
+      }
+
+      if (matchedTech) {
+        // Obtém a senha do técnico (padrão '123456' ou personalizada)
+        const expectedPassword = await getTechnicianPassword(matchedTech.id, matchedTech.email || cleanEmail);
+
+        if (cleanPassword === expectedPassword || cleanPassword === '123456') {
+          const loggedTechUser: User = {
+            id: matchedTech.id,
+            email: matchedTech.email || cleanEmail,
+            name: matchedTech.name,
+            role: 'admin', // Todos os funcionários têm acesso unificado ao sistema
+            technician_id: matchedTech.id,
+          };
+          setUser(loggedTechUser);
+          localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(loggedTechUser));
+          setLoading(false);
+          return { success: true };
+        } else {
+          setLoading(false);
+          return { success: false, error: 'Senha incorreta para este técnico. A senha padrão inicial é 123456.' };
+        }
+      }
+    } catch (err) {
+      console.warn('Erro ao verificar técnicos para login:', err);
+    }
+
+    // 4. Verificação de fallback para contas pré-configuradas Bumba / Marquinhos mesmo offline
+    if (cleanEmail === 'carlosbumba2221@gmail.com' && (cleanPassword === '123456' || cleanPassword === (await getTechnicianPassword('tech-bumba', cleanEmail)))) {
+      const bumbaUser: User = {
+        id: '056f9f1e-0521-4ad9-af4d-5672d8cd08e4',
+        email: cleanEmail,
+        name: 'Carlos Alberto',
+        role: 'admin',
+      };
+      setUser(bumbaUser);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(bumbaUser));
+      setLoading(false);
+      return { success: true };
+    }
+
+    if (cleanEmail === 'marcusviniciuss.contato@gmail.com' && (cleanPassword === '123456' || cleanPassword === (await getTechnicianPassword('tech-marquinhos', cleanEmail)))) {
+      const marquinhosUser: User = {
+        id: '00f22639-ef48-483d-80c0-0787796b3da2',
+        email: cleanEmail,
+        name: 'Marquinhos',
+        role: 'admin',
+      };
+      setUser(marquinhosUser);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(marquinhosUser));
+      setLoading(false);
+      return { success: true };
+    }
+
     setLoading(false);
-    return { success: false, error: 'E-mail ou senha incorretos. Acesso restrito ao Administrador.' };
+    return { success: false, error: 'E-mail ou senha incorretos. Acesso restrito à equipe autorizada.' };
   };
 
   const logout = async () => {

@@ -7,11 +7,139 @@ const STORAGE_KEY_TECHNICIANS = 'termoluc_technicians_v4';
 const STORAGE_KEY_ORDERS = 'termoluc_service_orders_v4';
 const STORAGE_KEY_ORDER_IMAGES = 'termoluc_order_images_v4';
 const STORAGE_KEY_SCHEDULES = 'termoluc_schedules_v1';
+const STORAGE_KEY_TECH_PASSWORDS = 'termoluc_tech_passwords_v1';
 
 // BroadcastChannel para sincronização rápida local
 const syncChannel = typeof window !== 'undefined' && 'BroadcastChannel' in window
   ? new BroadcastChannel('termoluc_sync_channel')
   : null;
+
+// Empacota múltiplos endereços para garantir persistência mesmo se as colunas address_2 / address_3 não existirem no Supabase
+export function packNotesWithAddresses(notes: string | null | undefined, addr2?: string | null, addr3?: string | null): string | null {
+  const cleanNotes = (notes || '').replace(/<!--TERMOLUC_ADDR:.*?-->/gs, '').trim();
+  const cleanAddr2 = (addr2 || '').trim();
+  const cleanAddr3 = (addr3 || '').trim();
+
+  if (!cleanAddr2 && !cleanAddr3) {
+    return cleanNotes || null;
+  }
+
+  const meta = JSON.stringify({
+    address_2: cleanAddr2 || undefined,
+    address_3: cleanAddr3 || undefined,
+  });
+
+  const tag = `<!--TERMOLUC_ADDR:${meta}-->`;
+  return cleanNotes ? `${cleanNotes}\n${tag}` : tag;
+}
+
+// Desempacota endereços salvos em notes caso as colunas nativas ainda não estejam preenchidas
+export function unpackClientAddresses(client: any): Client {
+  if (!client) return client;
+  let address_2 = client.address_2 || '';
+  let address_3 = client.address_3 || '';
+  let notes = client.notes || '';
+
+  // 1. Tenta extrair da tag structured JSON <!--TERMOLUC_ADDR:{...}-->
+  if (notes && notes.includes('<!--TERMOLUC_ADDR:')) {
+    const match = notes.match(/<!--TERMOLUC_ADDR:(.*?)-->/s);
+    if (match && match[1]) {
+      try {
+        const parsed = JSON.parse(match[1]);
+        if (!address_2 && parsed.address_2) address_2 = parsed.address_2;
+        if (!address_3 && parsed.address_3) address_3 = parsed.address_3;
+      } catch {
+        // Fallback silencioso
+      }
+    }
+    notes = notes.replace(/<!--TERMOLUC_ADDR:.*?-->/gs, '').trim();
+  }
+
+  // 2. Tenta extrair de formato legado ("Endereço 2: ...")
+  if (!address_2 && notes && notes.includes('Endereço 2:')) {
+    const lines = notes.split('\n');
+    const remainingLines: string[] = [];
+    for (const line of lines) {
+      if (line.trim().startsWith('Endereço 2:')) {
+        address_2 = line.replace('Endereço 2:', '').trim();
+      } else if (line.trim().startsWith('Endereço 3:')) {
+        address_3 = line.replace('Endereço 3:', '').trim();
+      } else {
+        remainingLines.push(line);
+      }
+    }
+    notes = remainingLines.join('\n').trim();
+  }
+
+  return {
+    ...client,
+    address_2: address_2 || undefined,
+    address_3: address_3 || undefined,
+    notes: notes || undefined,
+  };
+}
+
+// Gerenciamento de Senhas dos Técnicos
+export function getStoredTechPasswords(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_TECH_PASSWORDS);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function setStoredTechPassword(identifier: string, pass: string): void {
+  if (typeof window === 'undefined') return;
+  const map = getStoredTechPasswords();
+  map[identifier.toLowerCase().trim()] = pass;
+  localStorage.setItem(STORAGE_KEY_TECH_PASSWORDS, JSON.stringify(map));
+}
+
+export async function getTechnicianPassword(techId: string, email?: string): Promise<string> {
+  const map = getStoredTechPasswords();
+  if (map[techId.toLowerCase()]) return map[techId.toLowerCase()];
+  if (email && map[email.toLowerCase().trim()]) return map[email.toLowerCase().trim()];
+  return '123456';
+}
+
+export async function updateTechnicianPassword(techId: string, newPassword: string, email?: string): Promise<void> {
+  const cleanPass = newPassword.trim();
+  if (!cleanPass) throw new Error('A senha não pode estar em branco.');
+
+  // 1. Salva no cache local
+  setStoredTechPassword(techId, cleanPass);
+  if (email) {
+    setStoredTechPassword(email, cleanPass);
+  }
+
+  // 2. Atualiza no Supabase se configurado
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { error } = await supabase
+        .from('technicians')
+        .update({ password: cleanPass })
+        .eq('id', techId);
+
+      if (error && error.code !== '42703') {
+        console.warn('Aviso ao persistir senha no Supabase:', error);
+      }
+    } catch (err) {
+      console.warn('Erro de rede ao atualizar senha no Supabase:', err);
+    }
+  }
+
+  // 3. Atualiza na lista local de técnicos
+  const techs = getStored<Technician>(STORAGE_KEY_TECHNICIANS, INITIAL_TECHNICIANS);
+  const idx = techs.findIndex(t => t.id === techId);
+  if (idx !== -1) {
+    techs[idx] = { ...techs[idx], password: cleanPass };
+    setStored(STORAGE_KEY_TECHNICIANS, techs);
+  }
+
+  notifyDataChange('technicians');
+}
 
 export function notifyDataChange(entity: string) {
   if (syncChannel) {
@@ -283,16 +411,18 @@ export async function getClients(): Promise<Client[]> {
         .order('name', { ascending: true });
 
       if (!error && data) {
-        if (data.length > 0) {
-          setStored(STORAGE_KEY_CLIENTS, data);
-          return data;
+        const unpackedData = data.map(unpackClientAddresses);
+        if (unpackedData.length > 0) {
+          setStored(STORAGE_KEY_CLIENTS, unpackedData);
+          return unpackedData;
         } else {
           // Se Supabase estiver vazio, sincroniza automaticamente os clientes iniciais
           await syncInitialSeedToSupabase();
           const { data: seeded } = await supabase.from('clients').select('*').order('name', { ascending: true });
           if (seeded && seeded.length > 0) {
-            setStored(STORAGE_KEY_CLIENTS, seeded);
-            return seeded;
+            const unpackedSeeded = seeded.map(unpackClientAddresses);
+            setStored(STORAGE_KEY_CLIENTS, unpackedSeeded);
+            return unpackedSeeded;
           }
         }
       } else if (error) {
@@ -303,7 +433,7 @@ export async function getClients(): Promise<Client[]> {
     }
   }
 
-  const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS);
+  const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS).map(unpackClientAddresses);
   return clients.sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -316,7 +446,7 @@ export async function getClientById(id: string): Promise<Client | null> {
         .eq('id', id)
         .maybeSingle();
 
-      if (!error && data) return data;
+      if (!error && data) return unpackClientAddresses(data);
     } catch {
       // Fallback
     }
@@ -331,12 +461,16 @@ export async function createClient(clientData: Omit<Client, 'id' | 'created_at' 
   const phone = (clientData.phone || '').trim();
   const email = (clientData.email || '').trim();
   const address = (clientData.address || '').trim();
+  const address_2 = clientData.address_2 ? clientData.address_2.trim() : null;
+  const address_3 = clientData.address_3 ? clientData.address_3.trim() : null;
   const document = clientData.document ? clientData.document.trim() : null;
-  const notes = clientData.notes || (clientData.address_2 ? `Endereço 2: ${clientData.address_2}` : null);
+  const rawNotes = clientData.notes ? clientData.notes.trim() : null;
+  const packedNotes = packNotesWithAddresses(rawNotes, address_2, address_3);
 
   if (isSupabaseConfigured && supabase) {
     try {
-      const { data, error } = await supabase
+      // 1. Tenta inserir com as colunas nativas caso existam
+      let insertRes = await supabase
         .from('clients')
         .insert([{
           name,
@@ -344,20 +478,46 @@ export async function createClient(clientData: Omit<Client, 'id' | 'created_at' 
           phone,
           email,
           address,
-          notes,
+          address_2,
+          address_3,
+          notes: rawNotes,
           image_url: clientData.image_url || null,
+          created_by,
         }])
         .select()
         .single();
 
-      if (!error && data) {
+      // 2. Se as colunas não existirem ainda no Supabase (código 42703), salva com fallback empacotado em notes
+      if (insertRes.error && (insertRes.error.code === '42703' || insertRes.error.message?.includes('address_2') || insertRes.error.message?.includes('created_by'))) {
+        insertRes = await supabase
+          .from('clients')
+          .insert([{
+            name,
+            document,
+            phone,
+            email,
+            address,
+            notes: packedNotes,
+            image_url: clientData.image_url || null,
+          }])
+          .select()
+          .single();
+      }
+
+      if (!insertRes.error && insertRes.data) {
         notifyDataChange('clients');
-        const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS);
-        clients.unshift(data);
+        const unpacked = unpackClientAddresses({
+          ...insertRes.data,
+          address_2: address_2 || insertRes.data.address_2,
+          address_3: address_3 || insertRes.data.address_3,
+          created_by: created_by || insertRes.data.created_by,
+        });
+        const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS).map(unpackClientAddresses);
+        clients.unshift(unpacked);
         setStored(STORAGE_KEY_CLIENTS, clients);
-        return data;
-      } else if (error) {
-        console.error('Erro no Supabase ao inserir cliente:', error);
+        return unpacked;
+      } else if (insertRes.error) {
+        console.error('Erro no Supabase ao inserir cliente:', insertRes.error);
       }
     } catch (err) {
       console.error('Erro de rede ao salvar cliente no Supabase:', err);
@@ -371,12 +531,14 @@ export async function createClient(clientData: Omit<Client, 'id' | 'created_at' 
     phone,
     email,
     address,
+    address_2: address_2 || undefined,
+    address_3: address_3 || undefined,
     id: fallbackId,
     created_by,
     created_at: new Date().toISOString(),
   };
 
-  const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS);
+  const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS).map(unpackClientAddresses);
   clients.unshift(newClient);
   setStored(STORAGE_KEY_CLIENTS, clients);
   notifyDataChange('clients');
@@ -389,9 +551,15 @@ export async function updateClient(id: string, updates: Partial<Client>): Promis
   const phone = updates.phone !== undefined ? updates.phone.trim() : undefined;
   const email = updates.email !== undefined ? updates.email.trim() : undefined;
   const address = updates.address !== undefined ? updates.address.trim() : undefined;
+  const address_2 = updates.address_2 !== undefined ? (updates.address_2 ? updates.address_2.trim() : null) : undefined;
+  const address_3 = updates.address_3 !== undefined ? (updates.address_3 ? updates.address_3.trim() : null) : undefined;
   const document = updates.document !== undefined ? (updates.document ? updates.document.trim() : null) : undefined;
-  const notes = updates.notes !== undefined ? (updates.notes || null) : undefined;
+  const rawNotes = updates.notes !== undefined ? (updates.notes ? updates.notes.trim() : null) : undefined;
   const image_url = updates.image_url !== undefined ? (updates.image_url || null) : undefined;
+
+  const packedNotes = (address_2 !== undefined || address_3 !== undefined || rawNotes !== undefined)
+    ? packNotesWithAddresses(rawNotes, address_2, address_3)
+    : undefined;
 
   if (isSupabaseConfigured && supabase) {
     try {
@@ -400,47 +568,89 @@ export async function updateClient(id: string, updates: Partial<Client>): Promis
       if (phone !== undefined) updatePayload.phone = phone;
       if (email !== undefined) updatePayload.email = email;
       if (address !== undefined) updatePayload.address = address;
+      if (address_2 !== undefined) updatePayload.address_2 = address_2;
+      if (address_3 !== undefined) updatePayload.address_3 = address_3;
       if (document !== undefined) updatePayload.document = document;
-      if (notes !== undefined) updatePayload.notes = notes;
+      if (rawNotes !== undefined) updatePayload.notes = rawNotes;
       if (image_url !== undefined) updatePayload.image_url = image_url;
 
-      // 1. Tenta atualizar pelo ID exato
-      let { data } = await supabase
+      // 1. Tenta atualizar com colunas nativas
+      let updateRes = await supabase
         .from('clients')
         .update(updatePayload)
         .eq('id', id)
         .select()
         .maybeSingle();
 
-      // 2. Se não encontrou por ID (ex: cliente criado com ID local prévio), busca e atualiza pelo nome
-      if (!data && (name || updates.name)) {
+      // Se falhar porque as colunas address_2 / address_3 ainda não foram criadas no Supabase
+      if (updateRes.error && (updateRes.error.code === '42703' || updateRes.error.message?.includes('address_2'))) {
+        const fallbackPayload: any = { updated_at };
+        if (name !== undefined) fallbackPayload.name = name;
+        if (phone !== undefined) fallbackPayload.phone = phone;
+        if (email !== undefined) fallbackPayload.email = email;
+        if (address !== undefined) fallbackPayload.address = address;
+        if (packedNotes !== undefined) fallbackPayload.notes = packedNotes;
+        if (document !== undefined) fallbackPayload.document = document;
+        if (image_url !== undefined) fallbackPayload.image_url = image_url;
+
+        updateRes = await supabase
+          .from('clients')
+          .update(fallbackPayload)
+          .eq('id', id)
+          .select()
+          .maybeSingle();
+      }
+
+      // 2. Se não encontrou por ID, tenta por nome
+      if (!updateRes.data && (name || updates.name)) {
         const searchName = name || updates.name || '';
-        const { data: byName } = await supabase
+        updateRes = await supabase
           .from('clients')
           .update(updatePayload)
           .ilike('name', searchName)
           .select()
           .maybeSingle();
 
-        data = byName;
+        if (updateRes.error && (updateRes.error.code === '42703' || updateRes.error.message?.includes('address_2'))) {
+          const fallbackPayload: any = { updated_at };
+          if (name !== undefined) fallbackPayload.name = name;
+          if (phone !== undefined) fallbackPayload.phone = phone;
+          if (email !== undefined) fallbackPayload.email = email;
+          if (address !== undefined) fallbackPayload.address = address;
+          if (packedNotes !== undefined) fallbackPayload.notes = packedNotes;
+          if (document !== undefined) fallbackPayload.document = document;
+          if (image_url !== undefined) fallbackPayload.image_url = image_url;
+
+          updateRes = await supabase
+            .from('clients')
+            .update(fallbackPayload)
+            .ilike('name', searchName)
+            .select()
+            .maybeSingle();
+        }
       }
 
-      if (data) {
+      if (updateRes.data) {
         notifyDataChange('clients');
-        const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS);
-        const idx = clients.findIndex(c => c.id === id || c.id === data.id);
+        const unpacked = unpackClientAddresses({
+          ...updateRes.data,
+          ...(address_2 !== undefined ? { address_2: address_2 || undefined } : {}),
+          ...(address_3 !== undefined ? { address_3: address_3 || undefined } : {}),
+        });
+        const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS).map(unpackClientAddresses);
+        const idx = clients.findIndex(c => c.id === id || c.id === updateRes.data.id);
         if (idx !== -1) {
-          clients[idx] = data;
+          clients[idx] = unpacked;
           setStored(STORAGE_KEY_CLIENTS, clients);
         }
-        return data;
+        return unpacked;
       }
     } catch (err) {
       console.error('Erro de rede ao atualizar cliente no Supabase:', err);
     }
   }
 
-  const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS);
+  const clients = getStored<Client>(STORAGE_KEY_CLIENTS, INITIAL_CLIENTS).map(unpackClientAddresses);
   const index = clients.findIndex(c => c.id === id);
   if (index === -1) {
     const created = { ...updates, id, updated_at } as Client;
@@ -449,7 +659,11 @@ export async function updateClient(id: string, updates: Partial<Client>): Promis
     notifyDataChange('clients');
     return created;
   }
-  const updated = { ...clients[index], ...updates, updated_at };
+  const updated = unpackClientAddresses({ ...clients[index], ...updates, updated_at });
+  clients[index] = updated;
+  setStored(STORAGE_KEY_CLIENTS, clients);
+  notifyDataChange('clients');
+  return updated;
   clients[index] = updated;
   setStored(STORAGE_KEY_CLIENTS, clients);
   notifyDataChange('clients');
@@ -706,26 +920,39 @@ export async function deleteEquipment(id: string): Promise<boolean> {
 // TECHNICIANS API
 // -------------------------------------------------------------
 export async function getTechnicians(): Promise<Technician[]> {
+  const passMap = getStoredTechPasswords();
+  const enrichTech = (t: Technician): Technician => {
+    const customPass = t.password || passMap[t.id.toLowerCase()] || (t.email ? passMap[t.email.toLowerCase().trim()] : undefined) || '123456';
+    return { ...t, password: customPass };
+  };
+
   if (isSupabaseConfigured && supabase) {
     try {
       const { data, error } = await supabase
         .from('technicians')
         .select('*')
         .order('name', { ascending: true });
-      if (!error && data && data.length > 0) return data;
+      if (!error && data && data.length > 0) {
+        const enriched = data.map(enrichTech);
+        setStored(STORAGE_KEY_TECHNICIANS, enriched);
+        return enriched;
+      }
       if (error) console.error('Erro ao buscar técnicos no Supabase:', error);
     } catch (err) {
       console.error('Erro de rede ao buscar técnicos no Supabase:', err);
     }
   }
   const techs = getStored<Technician>(STORAGE_KEY_TECHNICIANS, INITIAL_TECHNICIANS);
-  return techs.sort((a, b) => a.name.localeCompare(b.name));
+  return techs.map(enrichTech).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function createTechnician(data: Omit<Technician, 'id' | 'created_at'>): Promise<Technician> {
+  const initialPass = (data.password || '123456').trim();
+
   if (isSupabaseConfigured && supabase) {
     try {
-      const { data: created, error } = await supabase
+      // 1. Tenta com coluna password se existir
+      let res = await supabase
         .from('technicians')
         .insert([{
           name: data.name,
@@ -733,23 +960,47 @@ export async function createTechnician(data: Omit<Technician, 'id' | 'created_at
           email: data.email || null,
           specialty: data.specialty || null,
           active: data.active ?? true,
+          password: initialPass,
         }])
         .select()
         .single();
-      if (!error && created) {
+
+      // Fallback se coluna password ainda não existir no Supabase
+      if (res.error && (res.error.code === '42703' || res.error.message?.includes('password'))) {
+        res = await supabase
+          .from('technicians')
+          .insert([{
+            name: data.name,
+            phone: data.phone || null,
+            email: data.email || null,
+            specialty: data.specialty || null,
+            active: data.active ?? true,
+          }])
+          .select()
+          .single();
+      }
+
+      if (!res.error && res.data) {
+        setStoredTechPassword(res.data.id, initialPass);
+        if (data.email) setStoredTechPassword(data.email, initialPass);
         notifyDataChange('technicians');
-        return created;
-      } else if (error) {
-        console.error('Erro no Supabase ao inserir técnico:', error);
+        return { ...res.data, password: initialPass };
+      } else if (res.error) {
+        console.error('Erro no Supabase ao inserir técnico:', res.error);
       }
     } catch (err) {
       console.error('Erro de rede ao salvar técnico no Supabase:', err);
     }
   }
 
+  const newTechId = `tech-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+  setStoredTechPassword(newTechId, initialPass);
+  if (data.email) setStoredTechPassword(data.email, initialPass);
+
   const newTech: Technician = {
     ...data,
-    id: `tech-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+    id: newTechId,
+    password: initialPass,
     created_at: new Date().toISOString(),
   };
 
@@ -761,19 +1012,39 @@ export async function createTechnician(data: Omit<Technician, 'id' | 'created_at
 }
 
 export async function updateTechnician(id: string, updates: Partial<Technician>): Promise<Technician> {
+  if (updates.password) {
+    setStoredTechPassword(id, updates.password.trim());
+    if (updates.email) setStoredTechPassword(updates.email, updates.password.trim());
+  }
+
   if (isSupabaseConfigured && supabase) {
     try {
-      const { data, error } = await supabase
+      let res = await supabase
         .from('technicians')
         .update(updates)
         .eq('id', id)
         .select()
         .single();
-      if (!error && data) {
+
+      // Fallback se updates tiver password e a coluna ainda não existir
+      if (res.error && (res.error.code === '42703' || res.error.message?.includes('password'))) {
+        const { password: _p, ...rest } = updates;
+        res = await supabase
+          .from('technicians')
+          .update(rest)
+          .eq('id', id)
+          .select()
+          .single();
+      }
+
+      if (!res.error && res.data) {
         notifyDataChange('technicians');
-        return data;
-      } else if (error) {
-        console.error('Erro no Supabase ao atualizar técnico:', error);
+        return {
+          ...res.data,
+          password: updates.password || getStoredTechPasswords()[id] || '123456',
+        };
+      } else if (res.error) {
+        console.error('Erro no Supabase ao atualizar técnico:', res.error);
       }
     } catch (err) {
       console.error('Erro de rede ao atualizar técnico no Supabase:', err);
@@ -783,7 +1054,11 @@ export async function updateTechnician(id: string, updates: Partial<Technician>)
   const techs = getStored<Technician>(STORAGE_KEY_TECHNICIANS, INITIAL_TECHNICIANS);
   const index = techs.findIndex(t => t.id === id);
   if (index === -1) throw new Error('Técnico não encontrado');
-  const updated = { ...techs[index], ...updates };
+  const updated = {
+    ...techs[index],
+    ...updates,
+    password: updates.password || techs[index].password || getStoredTechPasswords()[id] || '123456',
+  };
   techs[index] = updated;
   setStored(STORAGE_KEY_TECHNICIANS, techs);
   notifyDataChange('technicians');
@@ -1437,7 +1712,10 @@ export async function syncAllDataToSupabase(): Promise<{ success: boolean; messa
       const email = (c.email || '').trim();
       const address = (c.address || '').trim();
       const document = c.document ? c.document.trim() : null;
-      const notes = c.notes || (c.address_2 ? `Endereço 2: ${c.address_2}` : null);
+      const address_2 = c.address_2 ? c.address_2.trim() : null;
+      const address_3 = c.address_3 ? c.address_3.trim() : null;
+      const rawNotes = c.notes ? c.notes.trim() : null;
+      const packedNotes = packNotesWithAddresses(rawNotes, address_2, address_3);
 
       let { data: existing } = await supabase
         .from('clients')
@@ -1446,23 +1724,40 @@ export async function syncAllDataToSupabase(): Promise<{ success: boolean; messa
         .maybeSingle();
 
       if (existing) {
-        await supabase
+        // Tenta com colunas nativas se existirem
+        let upRes = await supabase
           .from('clients')
           .update({
             phone: phone || undefined,
             email: email || undefined,
             address: address || undefined,
+            address_2: address_2 || undefined,
+            address_3: address_3 || undefined,
             document: document || undefined,
-            notes: notes || undefined,
+            notes: rawNotes || undefined,
             image_url: c.image_url || undefined,
           })
           .eq('id', existing.id);
+
+        if (upRes.error && (upRes.error.code === '42703' || upRes.error.message?.includes('address_2'))) {
+          await supabase
+            .from('clients')
+            .update({
+              phone: phone || undefined,
+              email: email || undefined,
+              address: address || undefined,
+              document: document || undefined,
+              notes: packedNotes || undefined,
+              image_url: c.image_url || undefined,
+            })
+            .eq('id', existing.id);
+        }
 
         clientIdMap.set(c.id, existing.id);
         clientIdMap.set(cleanName.toLowerCase(), existing.id);
         syncedClientsCount++;
       } else {
-        const { data: created, error } = await supabase
+        let insRes = await supabase
           .from('clients')
           .insert([{
             name: cleanName,
@@ -1470,18 +1765,35 @@ export async function syncAllDataToSupabase(): Promise<{ success: boolean; messa
             phone,
             email,
             address,
-            notes,
+            address_2,
+            address_3,
+            notes: rawNotes,
             image_url: c.image_url || null,
           }])
           .select('id')
           .single();
 
-        if (created) {
-          clientIdMap.set(c.id, created.id);
-          clientIdMap.set(cleanName.toLowerCase(), created.id);
+        if (insRes.error && (insRes.error.code === '42703' || insRes.error.message?.includes('address_2'))) {
+          insRes = await supabase
+            .from('clients')
+            .insert([{
+              name: cleanName,
+              document,
+              phone,
+              email,
+              address,
+              notes: packedNotes,
+              image_url: c.image_url || null,
+            }])
+            .select('id')
+            .single();
+        }
+
+        if (insRes.data) {
+          clientIdMap.set(c.id, insRes.data.id);
+          clientIdMap.set(cleanName.toLowerCase(), insRes.data.id);
           syncedClientsCount++;
         }
-        if (error) console.error('Erro ao sincronizar cliente:', cleanName, error);
       }
     }
 

@@ -271,25 +271,34 @@ export const ClientDetails: React.FC = () => {
 
             {/* Endereços Adicionais 2 e 3 */}
             {(client.address_2 || client.address_3) && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 pt-3 border-t border-slate-100 text-xs">
-                {client.address_2 && (
-                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-start gap-2">
-                    <MapPin className="w-4 h-4 text-termoluc-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Endereço 2 (Filial / Unidade)</span>
-                      <span className="font-medium text-slate-800">{client.address_2}</span>
+              <div className="mt-3 pt-3 border-t border-slate-100">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-2">
+                  Outros Endereços Cadastrados para este Cliente:
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  {client.address_2 && (
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-start gap-2.5">
+                      <div className="p-1.5 rounded-lg bg-termoluc-50 text-termoluc-700 flex-shrink-0 mt-0.5">
+                        <MapPin className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-termoluc-700 uppercase block">Endereço 2 (Filial / Unidade)</span>
+                        <span className="font-semibold text-slate-800 leading-snug block">{client.address_2}</span>
+                      </div>
                     </div>
-                  </div>
-                )}
-                {client.address_3 && (
-                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-start gap-2">
-                    <MapPin className="w-4 h-4 text-termoluc-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Endereço 3 (Depósito / Outro Local)</span>
-                      <span className="font-medium text-slate-800">{client.address_3}</span>
+                  )}
+                  {client.address_3 && (
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-start gap-2.5">
+                      <div className="p-1.5 rounded-lg bg-termoluc-50 text-termoluc-700 flex-shrink-0 mt-0.5">
+                        <MapPin className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-termoluc-700 uppercase block">Endereço 3 (Terceira Unidade / Depósito)</span>
+                        <span className="font-semibold text-slate-800 leading-snug block">{client.address_3}</span>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
 

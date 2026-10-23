@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS public.technicians (
     email TEXT,
     specialty TEXT,
     active BOOLEAN NOT NULL DEFAULT true,
+    password TEXT DEFAULT '123456',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -208,3 +209,14 @@ WHERE NOT EXISTS (SELECT 1 FROM public.technicians WHERE name = 'Carlos Alberto'
 INSERT INTO public.technicians (name, phone, specialty, active)
 SELECT 'Marquinhos', '(11) 96543-2109', 'Câmaras Frigoríficas e Manutenção', true
 WHERE NOT EXISTS (SELECT 1 FROM public.technicians WHERE name = 'Marquinhos');
+
+-- ==============================================================================
+-- MIGRAÇÕES & ATUALIZAÇÕES PARA BASES EXISTENTES
+-- Execute este bloco no SQL Editor caso as tabelas já tenham sido criadas antes:
+-- ==============================================================================
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS address_2 TEXT;
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS address_3 TEXT;
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS created_by TEXT DEFAULT 'Alesandro';
+
+ALTER TABLE public.technicians ADD COLUMN IF NOT EXISTS password TEXT DEFAULT '123456';
+UPDATE public.technicians SET password = '123456' WHERE password IS NULL;

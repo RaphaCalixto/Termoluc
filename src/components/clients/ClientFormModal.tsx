@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { SingleImageUpload } from '../ui/ImageUpload';
 import { Client } from '../../types';
-import { createClient, updateClient } from '../../services/db';
+import { createClient, updateClient, unpackClientAddresses } from '../../services/db';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import { MapPin, Plus, Trash2 } from 'lucide-react';
@@ -43,20 +43,21 @@ export const ClientFormModal: React.FC<ClientFormModalProps> = ({
 
   useEffect(() => {
     if (client) {
+      const unpacked = unpackClientAddresses(client);
       setFormData({
-        name: client.name || '',
-        document: client.document || '',
-        phone: client.phone || '',
-        email: client.email || '',
-        address: client.address || '',
-        address_2: client.address_2 || '',
-        address_3: client.address_3 || '',
-        notes: client.notes || '',
-        image_url: client.image_url || '',
-        created_by: client.created_by || user?.name || 'Alesandro',
+        name: unpacked.name || '',
+        document: unpacked.document || '',
+        phone: unpacked.phone || '',
+        email: unpacked.email || '',
+        address: unpacked.address || '',
+        address_2: unpacked.address_2 || '',
+        address_3: unpacked.address_3 || '',
+        notes: unpacked.notes || '',
+        image_url: unpacked.image_url || '',
+        created_by: unpacked.created_by || user?.name || 'Alesandro',
       });
-      setShowAddress2(Boolean(client.address_2));
-      setShowAddress3(Boolean(client.address_3));
+      setShowAddress2(Boolean(unpacked.address_2 && unpacked.address_2.trim().length > 0));
+      setShowAddress3(Boolean(unpacked.address_3 && unpacked.address_3.trim().length > 0));
     } else {
       setFormData({
         name: '',

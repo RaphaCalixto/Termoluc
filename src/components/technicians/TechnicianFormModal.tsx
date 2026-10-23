@@ -25,6 +25,7 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
     phone: '',
     email: '',
     specialty: '',
+    password: '',
     active: true,
   });
 
@@ -37,6 +38,7 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
         phone: technician.phone || '',
         email: technician.email || '',
         specialty: technician.specialty || '',
+        password: technician.password || '',
         active: technician.active ?? true,
       });
     } else {
@@ -45,6 +47,7 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
         phone: '',
         email: '',
         specialty: '',
+        password: '123456',
         active: true,
       });
     }
@@ -61,11 +64,20 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
       setLoading(true);
       let saved: Technician;
 
+      const payload = {
+        name: formData.name.trim(),
+        phone: formData.phone.trim() || undefined,
+        email: formData.email.trim() || undefined,
+        specialty: formData.specialty.trim() || undefined,
+        active: formData.active,
+        ...(formData.password.trim() ? { password: formData.password.trim() } : {}),
+      };
+
       if (isEditing && technician) {
-        saved = await updateTechnician(technician.id, formData);
+        saved = await updateTechnician(technician.id, payload);
         success(`Técnico "${saved.name}" atualizado com sucesso!`);
       } else {
-        saved = await createTechnician(formData);
+        saved = await createTechnician(payload);
         success(`Técnico "${saved.name}" cadastrado com sucesso!`);
       }
 
@@ -137,6 +149,19 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
             value={formData.specialty}
             onChange={e => setFormData({ ...formData, specialty: e.target.value })}
             className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-termoluc-500 focus:ring-2 focus:ring-termoluc-200 outline-none text-sm"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+            Senha de Acesso ao Sistema {isEditing ? '(Deixe em branco para manter a atual)' : ''}
+          </label>
+          <input
+            type="text"
+            placeholder={isEditing ? 'Manter senha atual' : 'Senha inicial padrão: 123456'}
+            value={formData.password}
+            onChange={e => setFormData({ ...formData, password: e.target.value })}
+            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-termoluc-500 focus:ring-2 focus:ring-termoluc-200 outline-none text-sm font-mono"
           />
         </div>
 

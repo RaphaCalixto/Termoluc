@@ -5,6 +5,7 @@ export interface User {
   email: string;
   name: string;
   role: 'admin';
+  technician_id?: string;
   avatar_url?: string;
 }
 
@@ -54,7 +55,9 @@ export interface Technician {
   email?: string;
   specialty?: string;
   active: boolean;
+  password?: string; // Senha de acesso individual ao sistema
   created_at: string;
+  updated_at?: string;
 }
 
 export interface ServiceOrderImage {
