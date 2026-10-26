@@ -103,7 +103,8 @@ export const ServiceOrderFormModal: React.FC<ServiceOrderFormModalProps> = ({
       setNotes(order.notes || '');
       setStatus(order.status || 'Concluída');
       setValue(order.value ? order.value.toString() : '');
-      setImages(order.images?.map(img => img.image_url) || []);
+      const existingUrls = order.images?.map(img => img.image_url).filter(Boolean) || [];
+      setImages(Array.from(new Set(existingUrls)));
     } else {
       setSelectedClientIds(defaultClientId ? [defaultClientId] : (clients[0] ? [clients[0].id] : []));
       setEquipmentId(defaultEquipmentId || '');

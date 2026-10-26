@@ -1116,6 +1116,18 @@ export async function getServiceOrders(): Promise<ServiceOrder[]> {
             : order.client_id ? [order.client_id] : [];
           const linkedClients = ids.map(cid => clientMap.get(cid)).filter(Boolean) as Client[];
 
+          const rawImages: ServiceOrderImage[] = (order.images && order.images.length > 0)
+            ? order.images
+            : images.filter(img => img.service_order_id === order.id);
+          const seen = new Set<string>();
+          const uniqueImages: ServiceOrderImage[] = [];
+          for (const img of rawImages) {
+            if (img && img.image_url && !seen.has(img.image_url)) {
+              seen.add(img.image_url);
+              uniqueImages.push(img);
+            }
+          }
+
           return {
             ...order,
             client_ids: ids,
@@ -1123,7 +1135,7 @@ export async function getServiceOrders(): Promise<ServiceOrder[]> {
             clients: linkedClients,
             equipment: order.equipment_id ? equipmentMap.get(order.equipment_id) || null : null,
             technician: techMap.get(order.technician_id) || order.technician,
-            images: order.images || images.filter(img => img.service_order_id === order.id),
+            images: uniqueImages,
           };
         });
       } else if (error) {
@@ -1143,6 +1155,16 @@ export async function getServiceOrders(): Promise<ServiceOrder[]> {
         : order.client_id ? [order.client_id] : [];
       const linkedClients = ids.map(cid => clientMap.get(cid)).filter(Boolean) as Client[];
 
+      const rawImages = images.filter(img => img.service_order_id === order.id);
+      const seen = new Set<string>();
+      const uniqueImages: ServiceOrderImage[] = [];
+      for (const img of rawImages) {
+        if (img && img.image_url && !seen.has(img.image_url)) {
+          seen.add(img.image_url);
+          uniqueImages.push(img);
+        }
+      }
+
       return {
         ...order,
         client_ids: ids,
@@ -1150,7 +1172,7 @@ export async function getServiceOrders(): Promise<ServiceOrder[]> {
         clients: linkedClients,
         equipment: order.equipment_id ? equipmentMap.get(order.equipment_id) || null : null,
         technician: techMap.get(order.technician_id),
-        images: images.filter(img => img.service_order_id === order.id),
+        images: uniqueImages,
       };
     })
     .sort((a, b) => new Date(b.service_date).getTime() - new Date(a.service_date).getTime());
@@ -1203,6 +1225,7 @@ export async function createServiceOrder(
   const primaryClientId = ids[0] || data.client_id || '';
   const created_by = data.created_by || 'Alesandro';
   const status = normalizeOSStatus(data.status);
+  const cleanImageUrls = Array.from(new Set(imageUrls.filter(Boolean)));
 
   if (isSupabaseConfigured && supabase) {
     try {
@@ -1222,8 +1245,8 @@ export async function createServiceOrder(
         .single();
 
       if (!error && created) {
-        if (imageUrls.length > 0) {
-          const imageRows = imageUrls.map(url => ({
+        if (cleanImageUrls.length > 0) {
+          const imageRows = cleanImageUrls.map(url => ({
             service_order_id: created.id,
             image_url: url,
           }));
@@ -1257,9 +1280,9 @@ export async function createServiceOrder(
   orders.unshift(newOrder);
   setStored(STORAGE_KEY_ORDERS, orders);
 
-  if (imageUrls.length > 0) {
+  if (cleanImageUrls.length > 0) {
     const images = getStored<ServiceOrderImage>(STORAGE_KEY_ORDER_IMAGES, INITIAL_ORDER_IMAGES);
-    imageUrls.forEach((url, i) => {
+    cleanImageUrls.forEach((url, i) => {
       images.push({
         id: `img-${Date.now()}-${i}`,
         service_order_id: newId,
@@ -1277,7 +1300,7 @@ export async function createServiceOrder(
 export async function updateServiceOrder(
   id: string,
   updates: Partial<ServiceOrder>,
-  newImages?: string[]
+  images?: string[]
 ): Promise<ServiceOrder> {
   const updated_at = new Date().toISOString();
   const ids: string[] | undefined = updates.client_ids
@@ -1303,13 +1326,35 @@ export async function updateServiceOrder(
         .update(updatePayload)
         .eq('id', id);
 
-      if (!error && newImages && newImages.length > 0) {
-        const imageRows = newImages.map(url => ({
-          service_order_id: id,
-          image_url: url,
-        }));
-        await supabase.from('service_order_images').insert(imageRows);
+      // Sincroniza imagens da OS se o array de imagens foi fornecido
+      if (!error && images !== undefined) {
+        const cleanImages = Array.from(new Set(images.filter(Boolean)));
+
+        // Remove imagens anteriores desta OS para manter exatamente o estado atualizado
+        const { error: delError } = await supabase
+          .from('service_order_images')
+          .delete()
+          .eq('service_order_id', id);
+
+        if (delError) {
+          console.error('Erro ao limpar imagens anteriores da OS no Supabase:', delError);
+        }
+
+        // Insere as imagens atualizadas
+        if (cleanImages.length > 0) {
+          const imageRows = cleanImages.map(url => ({
+            service_order_id: id,
+            image_url: url,
+          }));
+          const { error: insError } = await supabase
+            .from('service_order_images')
+            .insert(imageRows);
+          if (insError) {
+            console.error('Erro ao inserir imagens atualizadas no Supabase:', insError);
+          }
+        }
       }
+
       if (!error) {
         notifyDataChange('orders');
         return (await getServiceOrderById(id))!;
@@ -1334,17 +1379,19 @@ export async function updateServiceOrder(
   };
   setStored(STORAGE_KEY_ORDERS, orders);
 
-  if (newImages && newImages.length > 0) {
-    const images = getStored<ServiceOrderImage>(STORAGE_KEY_ORDER_IMAGES, INITIAL_ORDER_IMAGES);
-    newImages.forEach((url, i) => {
-      images.push({
+  if (images !== undefined) {
+    const cleanImages = Array.from(new Set(images.filter(Boolean)));
+    const storedImages = getStored<ServiceOrderImage>(STORAGE_KEY_ORDER_IMAGES, INITIAL_ORDER_IMAGES);
+    const withoutCurrent = storedImages.filter(img => img.service_order_id !== id);
+    cleanImages.forEach((url, i) => {
+      withoutCurrent.push({
         id: `img-${Date.now()}-${i}`,
         service_order_id: id,
         image_url: url,
         created_at: new Date().toISOString(),
       });
     });
-    setStored(STORAGE_KEY_ORDER_IMAGES, images);
+    setStored(STORAGE_KEY_ORDER_IMAGES, withoutCurrent);
   }
 
   notifyDataChange('orders');

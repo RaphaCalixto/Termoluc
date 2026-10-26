@@ -178,7 +178,9 @@ export const MultiImageUpload: React.FC<MultiImageUploadProps> = ({
         const url = await uploadImage(file, folder);
         uploadedUrls.push(url);
       }
-      onChange([...images, ...uploadedUrls]);
+      const combined = [...images, ...uploadedUrls];
+      const unique = Array.from(new Set(combined.filter(Boolean)));
+      onChange(unique);
     } catch (err) {
       console.error('Erro ao enviar múltiplas imagens:', err);
     } finally {
