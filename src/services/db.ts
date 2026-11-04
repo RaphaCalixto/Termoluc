@@ -1635,6 +1635,41 @@ export async function deleteSchedule(id: string): Promise<boolean> {
 // -------------------------------------------------------------
 // REPORTS API (Relatórios Técnicos em PDF)
 // -------------------------------------------------------------
+function parseReportItem(item: any, clientMap: Map<string, Client>, equipMap: Map<string, Equipment>): Report {
+  let report_type = item.report_type || 'arquivo';
+  let report_code = item.report_code;
+  let vistoria_data = item.vistoria_data;
+  let limpeza_data = item.limpeza_data;
+  let cleanNotes = item.notes;
+
+  if (item.notes && typeof item.notes === 'string' && item.notes.includes('<!--TERMOLUC_REPORT_PAYLOAD:')) {
+    try {
+      const match = item.notes.match(/<!--TERMOLUC_REPORT_PAYLOAD:(.*?)-->/s);
+      if (match && match[1]) {
+        const payload = JSON.parse(match[1]);
+        report_type = payload.report_type || report_type;
+        report_code = payload.report_code || report_code;
+        vistoria_data = payload.vistoria_data || vistoria_data;
+        limpeza_data = payload.limpeza_data || limpeza_data;
+        cleanNotes = item.notes.replace(/<!--TERMOLUC_REPORT_PAYLOAD:.*?-->\n?/s, '').trim();
+      }
+    } catch (e) {
+      console.warn('Erro ao processar payload do relatório:', e);
+    }
+  }
+
+  return {
+    ...item,
+    report_type,
+    report_code,
+    vistoria_data,
+    limpeza_data,
+    notes: cleanNotes,
+    client: item.client_id ? clientMap.get(item.client_id) : undefined,
+    equipment: item.equipment_id ? equipMap.get(item.equipment_id) : null,
+  };
+}
+
 export async function getReports(): Promise<Report[]> {
   const clients = await getClients();
   const clientMap = new Map(clients.map(c => [c.id, c]));
@@ -1649,11 +1684,7 @@ export async function getReports(): Promise<Report[]> {
         .order('report_date', { ascending: false });
 
       if (!error && data) {
-        const enriched: Report[] = data.map((item: any) => ({
-          ...item,
-          client: item.client_id ? clientMap.get(item.client_id) : undefined,
-          equipment: item.equipment_id ? equipMap.get(item.equipment_id) : null,
-        }));
+        const enriched: Report[] = data.map((item: any) => parseReportItem(item, clientMap, equipMap));
         setStored(STORAGE_KEY_REPORTS, enriched);
         return enriched;
       } else if (error) {
@@ -1665,11 +1696,8 @@ export async function getReports(): Promise<Report[]> {
   }
 
   const reports = getStored<Report>(STORAGE_KEY_REPORTS, []);
-  return reports.map(r => ({
-    ...r,
-    client: r.client_id ? clientMap.get(r.client_id) : undefined,
-    equipment: r.equipment_id ? equipMap.get(r.equipment_id) : null,
-  })).sort((a, b) => new Date(b.report_date).getTime() - new Date(a.report_date).getTime());
+  return reports.map(r => parseReportItem(r, clientMap, equipMap))
+    .sort((a, b) => new Date(b.report_date).getTime() - new Date(a.report_date).getTime());
 }
 
 export async function getReportById(id: string): Promise<Report | null> {
@@ -1689,27 +1717,41 @@ export async function createReport(
   const report_date = data.report_date || now.split('T')[0];
   const created_by = data.created_by || 'Alesandro';
 
+  // Se houver dados estruturados de vistoria ou limpeza, empacota com segurança nas notes
+  let combinedNotes = data.notes || '';
+  if (data.report_type === 'vistoria' || data.report_type === 'limpeza') {
+    const payload = {
+      report_type: data.report_type,
+      report_code: data.report_code,
+      vistoria_data: data.vistoria_data,
+      limpeza_data: data.limpeza_data,
+    };
+    combinedNotes = `<!--TERMOLUC_REPORT_PAYLOAD:${JSON.stringify(payload)}-->\n${data.notes || ''}`;
+  }
+
   if (isSupabaseConfigured && supabase) {
     try {
+      const insertPayload: any = {
+        title: data.title,
+        category: data.category,
+        client_id: data.client_id || null,
+        client_name: data.client_name || null,
+        equipment_id: data.equipment_id || null,
+        equipment_name: data.equipment_name || null,
+        service_order_id: data.service_order_id || null,
+        service_order_number: data.service_order_number || null,
+        technician_name: data.technician_name || null,
+        file_url: data.file_url,
+        file_name: data.file_name,
+        file_size: data.file_size || null,
+        report_date,
+        notes: combinedNotes || null,
+        created_by,
+      };
+
       const { data: created, error } = await supabase
         .from('reports')
-        .insert([{
-          title: data.title,
-          category: data.category,
-          client_id: data.client_id || null,
-          client_name: data.client_name || null,
-          equipment_id: data.equipment_id || null,
-          equipment_name: data.equipment_name || null,
-          service_order_id: data.service_order_id || null,
-          service_order_number: data.service_order_number || null,
-          technician_name: data.technician_name || null,
-          file_url: data.file_url,
-          file_name: data.file_name,
-          file_size: data.file_size || null,
-          report_date,
-          notes: data.notes || null,
-          created_by,
-        }])
+        .insert([insertPayload])
         .select()
         .single();
 

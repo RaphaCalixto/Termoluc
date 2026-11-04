@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  FileText, 
+  FileText,
+  FileCheck2, 
   Search, 
   Plus, 
   Filter, 
@@ -19,6 +20,7 @@ import { Report, ReportCategory, Client } from '../types';
 import { getReports, getClients, deleteReport, subscribeToDataChanges } from '../services/db';
 import { ReportUploadModal } from '../components/reports/ReportUploadModal';
 import { ReportViewerModal } from '../components/reports/ReportViewerModal';
+import { ReportEditorModal } from '../components/reports/ReportEditorModal';
 import { DeleteConfirmModal } from '../components/ui/DeleteConfirmModal';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -97,6 +99,8 @@ export const ReportsPage: React.FC = () => {
   const [dateFilter, setDateFilter] = useState('');
 
   // Modais
+  const [editorModalOpen, setEditorModalOpen] = useState(false);
+  const [editorInitialType, setEditorInitialType] = useState<'vistoria' | 'limpeza'>('vistoria');
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadDefaultCategory, setUploadDefaultCategory] = useState<ReportCategory>('Manutenção');
   const [viewerReport, setViewerReport] = useState<Report | null>(null);
@@ -190,10 +194,18 @@ export const ReportsPage: React.FC = () => {
     }
   };
 
-  const handleOpenUploadForCategory = (catId: ReportCategory, e: React.MouseEvent) => {
+  const handleOpenCategoryAction = (catId: ReportCategory, e: React.MouseEvent) => {
     e.stopPropagation();
-    setUploadDefaultCategory(catId);
-    setUploadModalOpen(true);
+    if (catId === 'Laudo') {
+      setEditorInitialType('vistoria');
+      setEditorModalOpen(true);
+    } else if (catId === 'Limpeza') {
+      setEditorInitialType('limpeza');
+      setEditorModalOpen(true);
+    } else {
+      setUploadDefaultCategory(catId);
+      setUploadModalOpen(true);
+    }
   };
 
   const resetFilters = () => {
@@ -221,17 +233,31 @@ export const ReportsPage: React.FC = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            setUploadDefaultCategory('Manutenção');
-            setUploadModalOpen(true);
-          }}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-termoluc-600 hover:bg-termoluc-700 text-white text-xs font-bold shadow-sm shadow-termoluc-200 transition-all active:scale-95"
-        >
-          <Plus className="w-4 h-4" />
-          <span>+ Enviar Relatório (PDF)</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => {
+              setEditorInitialType('vistoria');
+              setEditorModalOpen(true);
+            }}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-termoluc-600 hover:bg-termoluc-700 text-white text-xs font-bold shadow-sm shadow-termoluc-200 transition-all active:scale-95"
+          >
+            <FileCheck2 className="w-4 h-4" />
+            <span>+ Criar Relatório Oficial</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setUploadDefaultCategory('Manutenção');
+              setUploadModalOpen(true);
+            }}
+            className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold transition-all active:scale-95 shadow-xs"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Upload de Arquivo (PDF)</span>
+          </button>
+        </div>
       </div>
 
       {/* 4 Cards de Categorias */}
@@ -279,7 +305,7 @@ export const ReportsPage: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={(e) => handleOpenUploadForCategory(cat.id, e)}
+                  onClick={(e) => handleOpenCategoryAction(cat.id, e)}
                   className="p-1 text-slate-400 hover:text-termoluc-600 hover:bg-white rounded-lg transition-colors"
                   title={`Adicionar novo relatório em ${cat.title}`}
                 >
@@ -410,16 +436,40 @@ export const ReportsPage: React.FC = () => {
 
                   {/* Title & PDF Badge */}
                   <div className="flex items-start gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-xl bg-termoluc-50 text-termoluc-600 border border-termoluc-100 flex items-center justify-center font-bold text-xs flex-shrink-0">
-                      PDF
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs flex-shrink-0 ${
+                      rep.report_type === 'vistoria' || rep.vistoria_data
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : rep.report_type === 'limpeza' || rep.limpeza_data
+                        ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                        : 'bg-termoluc-50 text-termoluc-600 border border-termoluc-100'
+                    }`}>
+                      {rep.report_type === 'vistoria' || rep.vistoria_data ? (
+                        <FileCheck2 className="w-5 h-5" />
+                      ) : rep.report_type === 'limpeza' || rep.limpeza_data ? (
+                        <Sparkles className="w-5 h-5" />
+                      ) : (
+                        'PDF'
+                      )}
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <h4 className="font-bold text-sm text-slate-900 group-hover:text-termoluc-700 transition-colors line-clamp-2">
-                        {rep.title}
-                      </h4>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="font-bold text-sm text-slate-900 group-hover:text-termoluc-700 transition-colors line-clamp-1">
+                          {rep.title}
+                        </h4>
+                        {(rep.report_type === 'vistoria' || rep.vistoria_data) && (
+                          <span className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            Modelo Laudo
+                          </span>
+                        )}
+                        {(rep.report_type === 'limpeza' || rep.limpeza_data) && (
+                          <span className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 border border-sky-200">
+                            Modelo Limpeza
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                        {rep.file_name}
+                        {rep.report_code ? `Código: ${rep.report_code} • ` : ''}{rep.file_name}
                       </p>
                     </div>
                   </div>
@@ -519,6 +569,15 @@ export const ReportsPage: React.FC = () => {
       )}
 
       {/* Modais */}
+      <ReportEditorModal
+        isOpen={editorModalOpen}
+        onClose={() => setEditorModalOpen(false)}
+        initialType={editorInitialType}
+        onSuccess={() => {
+          loadData();
+        }}
+      />
+
       <ReportUploadModal
         isOpen={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}

@@ -228,6 +228,8 @@ CREATE TABLE IF NOT EXISTS public.reports (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     title TEXT NOT NULL,
     category TEXT NOT NULL CHECK (category IN ('Limpeza', 'Manutenção', 'Instalação', 'Laudo')),
+    report_type TEXT DEFAULT 'arquivo',
+    report_code TEXT,
     client_id UUID REFERENCES public.clients(id) ON DELETE SET NULL,
     client_name TEXT,
     equipment_id UUID REFERENCES public.equipment(id) ON DELETE SET NULL,
@@ -240,10 +242,18 @@ CREATE TABLE IF NOT EXISTS public.reports (
     file_size INTEGER,
     report_date DATE NOT NULL DEFAULT CURRENT_DATE,
     notes TEXT,
+    vistoria_data JSONB,
+    limpeza_data JSONB,
     created_by TEXT DEFAULT 'Alesandro',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Suporte retroativo caso a tabela já exista no Supabase
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS report_type TEXT DEFAULT 'arquivo';
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS report_code TEXT;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS vistoria_data JSONB;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS limpeza_data JSONB;
 
 ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Full access to reports" ON public.reports;

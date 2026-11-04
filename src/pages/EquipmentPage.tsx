@@ -11,6 +11,7 @@ import {
   Edit2,
   Trash2,
   FileText,
+  FileCheck2,
   Filter,
   Camera,
   ChevronLeft,
@@ -21,6 +22,7 @@ import { Equipment, Client } from '../types';
 import { getEquipment, getClients, deleteEquipment, subscribeToDataChanges } from '../services/db';
 import { EquipmentFormModal } from '../components/equipment/EquipmentFormModal';
 import { ServiceOrderFormModal } from '../components/orders/ServiceOrderFormModal';
+import { ReportEditorModal } from '../components/reports/ReportEditorModal';
 import { DeleteConfirmModal } from '../components/ui/DeleteConfirmModal';
 import { EmptyState } from '../components/ui/EmptyState';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
@@ -44,6 +46,8 @@ export const EquipmentPage: React.FC = () => {
   const [editingEquip, setEditingEquip] = useState<Equipment | null>(null);
   const [osModalOpen, setOsModalOpen] = useState(false);
   const [targetEquipForOS, setTargetEquipForOS] = useState<Equipment | null>(null);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [targetEquipForReport, setTargetEquipForReport] = useState<Equipment | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [equipToDelete, setEquipToDelete] = useState<Equipment | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -334,17 +338,31 @@ export const EquipmentPage: React.FC = () => {
 
                 {/* Card Actions Footer */}
                 <div className="px-4 py-3 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTargetEquipForOS(item);
-                      setOsModalOpen(true);
-                    }}
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-termoluc-600 hover:text-termoluc-700 bg-termoluc-50 hover:bg-termoluc-100 px-3 py-1.5 rounded-lg transition-colors"
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    Abrir OS
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTargetEquipForOS(item);
+                        setOsModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-termoluc-600 hover:text-termoluc-700 bg-termoluc-50 hover:bg-termoluc-100 px-2.5 py-1.5 rounded-lg transition-colors"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      Abrir OS
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTargetEquipForReport(item);
+                        setReportModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg transition-colors"
+                      title="Emitir relatório oficial (Laudo / Higienização)"
+                    >
+                      <FileCheck2 className="w-3.5 h-3.5" />
+                      Relatório
+                    </button>
+                  </div>
 
                   <div className="flex items-center gap-1">
                     <button
@@ -462,6 +480,22 @@ export const EquipmentPage: React.FC = () => {
         defaultEquipmentId={targetEquipForOS?.id}
         onSuccess={() => loadData()}
       />
+
+      {reportModalOpen && targetEquipForReport && (
+        <ReportEditorModal
+          isOpen={reportModalOpen}
+          onClose={() => {
+            setReportModalOpen(false);
+            setTargetEquipForReport(null);
+          }}
+          initialEquipment={targetEquipForReport}
+          initialClient={clients.find(c => c.id === targetEquipForReport.client_id) || null}
+          initialType="vistoria"
+          onSuccess={() => {
+            loadData();
+          }}
+        />
+      )}
 
       <DeleteConfirmModal
         isOpen={deleteModalOpen}

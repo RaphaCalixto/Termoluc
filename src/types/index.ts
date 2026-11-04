@@ -132,10 +132,55 @@ export interface Schedule {
 
 export type ReportCategory = 'Limpeza' | 'Manutenção' | 'Instalação' | 'Laudo';
 
+export interface VistoriaReportData {
+  report_code: string; // ex: RT-2026/104-LEB
+  date_formatted: string; // ex: "Outubro de 2026"
+  equipment_summary: string; // ex: "Samsung Wind Free 18k"
+  operational_status: string; // ex: "REQUER INTERVENÇÃO"
+  ambient: string; // ex: "Sala Administração"
+  equipment_brand_model: string; // ex: "Ar Split Samsung Wind Free"
+  capacity: string; // ex: "18.000 BTUs"
+  current_condition: string; // ex: "DESCONTINUADO / FALHA"
+  diagnosis: string; // texto da constatação na vistoria
+  proposed_procedures: { title: string; description: string }[];
+  client_signature_name?: string; // ex: "Cliente / Sala Administração"
+  address_line?: string; // ex: "Rua Carlos Gois, 422 - Leblon, Rio de Janeiro/RJ"
+}
+
+export interface LimpezaEquipmentItem {
+  id: string;
+  ambient: string; // ex: "Sala TV"
+  equipment_model: string; // ex: "LG Split Hi-Wall 18.000 BTUs"
+  service_executed: string; // ex: "Higienização + Lavagem"
+  pressure: string; // ex: "130 PSI - OK"
+  condenser_status: string; // ex: "LIMPA"
+  general_status: string; // ex: "OK"
+}
+
+export interface LimpezaReportData {
+  report_code: string; // ex: RT-2026/089-BOT
+  subtitle?: string; // ex: "Serviço Técnico de Sanitização e Aferição Operacional em Sistemas Split Hi-Wall"
+  date_formatted: string; // ex: "Outubro de 2026"
+  operational_status: string; // ex: "100% CONCLUÍDO & OPERACIONAL"
+  client_address_full: string; // ex: "Av. Lauro Sodré, nº 150, Bloco 3, Apt 209\nBotafogo, Rio de Janeiro / RJ – CEP: 22290-070"
+  kpi_evaporators_clean: string; // ex: "06 Unid."
+  kpi_condensers_clean: string; // ex: "06 Unid."
+  kpi_pressure: string; // ex: "130 PSI"
+  kpi_efficiency: string; // ex: "100%"
+  initial_scope: string; // texto do escopo e inspeção inicial
+  items: LimpezaEquipmentItem[];
+  procedures: { title: string; description: string }[];
+  conclusion: string; // conclusão de desempenho e segurança operacional
+  preventive_recommendations: string[]; // lista de recomendações
+  city_date?: string; // ex: "Rio de Janeiro, 05 de Outubro de 2026"
+}
+
 export interface Report {
   id: string;
   title: string;
   category: ReportCategory;
+  report_type?: 'vistoria' | 'limpeza' | 'arquivo'; // Tipo do modelo oficial
+  report_code?: string; // ex: RT-2026/104-LEB
   client_id?: string | null;
   client_name?: string;
   equipment_id?: string | null;
@@ -148,6 +193,8 @@ export interface Report {
   file_size?: number; // em bytes
   report_date: string; // YYYY-MM-DD
   notes?: string;
+  vistoria_data?: VistoriaReportData;
+  limpeza_data?: LimpezaReportData;
   created_by?: string;
   created_at: string;
   updated_at?: string;
