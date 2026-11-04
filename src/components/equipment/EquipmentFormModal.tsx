@@ -21,6 +21,7 @@ const COMMON_EQUIPMENT_TYPES = [
   'Ar-condicionado Split Cassete',
   'Ar-condicionado Piso Teto',
   'Ar-condicionado Multi-Split',
+  'ACJ (Ar-condicionado de Janela)',
   'Sistema VRF / VRV',
   'Câmara Frigorífica de Resfriados',
   'Câmara Frigorífica de Congelados',
@@ -289,6 +290,9 @@ export const EquipmentFormModal: React.FC<EquipmentFormModalProps> = ({
               onChange={e => setFormData({ ...formData, type: e.target.value })}
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white focus:border-termoluc-500 focus:ring-2 focus:ring-termoluc-200 outline-none text-sm"
             >
+              {!COMMON_EQUIPMENT_TYPES.includes(formData.type) && formData.type && (
+                <option value={formData.type}>{formData.type}</option>
+              )}
               {COMMON_EQUIPMENT_TYPES.map(t => (
                 <option key={t} value={t}>{t}</option>
               ))}
