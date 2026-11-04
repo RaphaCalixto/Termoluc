@@ -6,6 +6,7 @@ import {
   Users,
   Wrench,
   FileText,
+  FolderArchive,
   UserCog,
   Settings,
   PlusCircle,
@@ -37,6 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { name: 'Clientes', path: '/clients', icon: Users },
     { name: 'Equipamentos', path: '/equipment', icon: Wrench },
     { name: 'Ordens de Serviço', path: '/orders', icon: FileText },
+    { name: 'Relatórios', path: '/reports', icon: FolderArchive },
     { name: 'Técnicos', path: '/technicians', icon: UserCog },
     { name: 'Configurações', path: '/settings', icon: Settings },
   ];

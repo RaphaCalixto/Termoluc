@@ -11,7 +11,8 @@ import {
   Eye,
   Edit2,
   Trash2,
-  Camera
+  Camera,
+  FileDown
 } from 'lucide-react';
 import { ServiceOrder, Client, Technician, ServiceOrderImage } from '../types';
 import {
@@ -49,6 +50,7 @@ export const ServiceOrdersPage: React.FC = () => {
   const [formModalOpen, setFormModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<ServiceOrder | null>(null);
   const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<ServiceOrder | null>(null);
+  const [openPrintDirectly, setOpenPrintDirectly] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<ServiceOrder | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -277,7 +279,23 @@ export const ServiceOrdersPage: React.FC = () => {
                   <div className="flex items-center gap-2 self-end sm:self-center">
                     <button
                       type="button"
-                      onClick={() => setSelectedOrderForDetails(order)}
+                      onClick={() => {
+                        setSelectedOrderForDetails(order);
+                        setOpenPrintDirectly(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-termoluc-600 hover:bg-termoluc-700 text-white text-xs font-bold transition-all shadow-xs active:scale-95"
+                      title="Baixar PDF Oficial desta OS"
+                    >
+                      <FileDown className="w-3.5 h-3.5" />
+                      <span>Baixar PDF</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedOrderForDetails(order);
+                        setOpenPrintDirectly(false);
+                      }}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-termoluc-50 hover:bg-termoluc-100 text-termoluc-700 text-xs font-bold transition-colors"
                     >
                       <Eye className="w-3.5 h-3.5" />
@@ -401,15 +419,21 @@ export const ServiceOrdersPage: React.FC = () => {
 
       <ServiceOrderDetailsModal
         isOpen={Boolean(selectedOrderForDetails)}
-        onClose={() => setSelectedOrderForDetails(null)}
+        onClose={() => {
+          setSelectedOrderForDetails(null);
+          setOpenPrintDirectly(false);
+        }}
         order={selectedOrderForDetails}
+        initialShowPrint={openPrintDirectly}
         onEdit={(ord: ServiceOrder) => {
           setSelectedOrderForDetails(null);
+          setOpenPrintDirectly(false);
           setEditingOrder(ord);
           setFormModalOpen(true);
         }}
         onDelete={(ord: ServiceOrder) => {
           setSelectedOrderForDetails(null);
+          setOpenPrintDirectly(false);
           setOrderToDelete(ord);
           setDeleteModalOpen(true);
         }}

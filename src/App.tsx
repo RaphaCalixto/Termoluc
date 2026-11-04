@@ -10,6 +10,7 @@ import { Clients } from './pages/Clients';
 import { ClientDetails } from './pages/ClientDetails';
 import { EquipmentPage } from './pages/EquipmentPage';
 import { ServiceOrdersPage } from './pages/ServiceOrdersPage';
+import { ReportsPage } from './pages/ReportsPage';
 import { TechniciansPage } from './pages/TechniciansPage';
 import { SchedulePage } from './pages/SchedulePage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -94,6 +95,7 @@ const AppContent: React.FC = () => {
           <Route path="/clients/:id" element={<ClientDetails key={refreshKey} />} />
           <Route path="/equipment" element={<EquipmentPage key={refreshKey} />} />
           <Route path="/orders" element={<ServiceOrdersPage key={refreshKey} />} />
+          <Route path="/reports" element={<ReportsPage key={refreshKey} />} />
           <Route path="/technicians" element={<TechniciansPage key={refreshKey} />} />
           <Route path="/settings" element={<SettingsPage key={refreshKey} />} />
         </Route>

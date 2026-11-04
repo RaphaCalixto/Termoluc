@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { Client, Equipment, Technician, ServiceOrder, ServiceOrderImage, DashboardMetrics, Schedule } from '../types';
+import { Client, Equipment, Technician, ServiceOrder, ServiceOrderImage, DashboardMetrics, Schedule, Report, ReportCategory } from '../types';
 
 const STORAGE_KEY_CLIENTS = 'termoluc_clients_v4';
 const STORAGE_KEY_EQUIPMENT = 'termoluc_equipment_v4';
@@ -7,6 +7,7 @@ const STORAGE_KEY_TECHNICIANS = 'termoluc_technicians_v4';
 const STORAGE_KEY_ORDERS = 'termoluc_service_orders_v4';
 const STORAGE_KEY_ORDER_IMAGES = 'termoluc_order_images_v4';
 const STORAGE_KEY_SCHEDULES = 'termoluc_schedules_v1';
+const STORAGE_KEY_REPORTS = 'termoluc_reports_v1';
 const STORAGE_KEY_TECH_PASSWORDS = 'termoluc_tech_passwords_v1';
 
 // BroadcastChannel para sincronização rápida local
@@ -1628,6 +1629,134 @@ export async function deleteSchedule(id: string): Promise<boolean> {
   const filtered = list.filter(s => s.id !== id);
   setStored(STORAGE_KEY_SCHEDULES, filtered);
   notifyDataChange('schedules');
+  return true;
+}
+
+// -------------------------------------------------------------
+// REPORTS API (Relatórios Técnicos em PDF)
+// -------------------------------------------------------------
+export async function getReports(): Promise<Report[]> {
+  const clients = await getClients();
+  const clientMap = new Map(clients.map(c => [c.id, c]));
+  const equipment = await getEquipment();
+  const equipMap = new Map(equipment.map(e => [e.id, e]));
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('reports')
+        .select('*')
+        .order('report_date', { ascending: false });
+
+      if (!error && data) {
+        const enriched: Report[] = data.map((item: any) => ({
+          ...item,
+          client: item.client_id ? clientMap.get(item.client_id) : undefined,
+          equipment: item.equipment_id ? equipMap.get(item.equipment_id) : null,
+        }));
+        setStored(STORAGE_KEY_REPORTS, enriched);
+        return enriched;
+      } else if (error) {
+        console.warn('Erro ao buscar relatórios no Supabase:', error);
+      }
+    } catch (err) {
+      console.warn('Erro de rede ao buscar relatórios no Supabase:', err);
+    }
+  }
+
+  const reports = getStored<Report>(STORAGE_KEY_REPORTS, []);
+  return reports.map(r => ({
+    ...r,
+    client: r.client_id ? clientMap.get(r.client_id) : undefined,
+    equipment: r.equipment_id ? equipMap.get(r.equipment_id) : null,
+  })).sort((a, b) => new Date(b.report_date).getTime() - new Date(a.report_date).getTime());
+}
+
+export async function getReportById(id: string): Promise<Report | null> {
+  const all = await getReports();
+  return all.find(r => r.id === id) || null;
+}
+
+export async function getReportsByCategory(category: ReportCategory): Promise<Report[]> {
+  const all = await getReports();
+  return all.filter(r => r.category === category);
+}
+
+export async function createReport(
+  data: Omit<Report, 'id' | 'created_at' | 'updated_at' | 'client' | 'equipment'>
+): Promise<Report> {
+  const now = new Date().toISOString();
+  const report_date = data.report_date || now.split('T')[0];
+  const created_by = data.created_by || 'Alesandro';
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data: created, error } = await supabase
+        .from('reports')
+        .insert([{
+          title: data.title,
+          category: data.category,
+          client_id: data.client_id || null,
+          client_name: data.client_name || null,
+          equipment_id: data.equipment_id || null,
+          equipment_name: data.equipment_name || null,
+          service_order_id: data.service_order_id || null,
+          service_order_number: data.service_order_number || null,
+          technician_name: data.technician_name || null,
+          file_url: data.file_url,
+          file_name: data.file_name,
+          file_size: data.file_size || null,
+          report_date,
+          notes: data.notes || null,
+          created_by,
+        }])
+        .select()
+        .single();
+
+      if (!error && created) {
+        notifyDataChange('reports');
+        return (await getReportById(created.id)) || created;
+      } else if (error) {
+        console.warn('Erro ao inserir relatório no Supabase:', error);
+      }
+    } catch (err) {
+      console.warn('Erro de rede ao salvar relatório no Supabase:', err);
+    }
+  }
+
+  const reports = getStored<Report>(STORAGE_KEY_REPORTS, []);
+  const newReport: Report = {
+    ...data,
+    id: `rep-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    report_date,
+    created_by,
+    created_at: now,
+  };
+
+  reports.unshift(newReport);
+  setStored(STORAGE_KEY_REPORTS, reports);
+  notifyDataChange('reports');
+  return newReport;
+}
+
+export async function deleteReport(id: string): Promise<boolean> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { error } = await supabase.from('reports').delete().eq('id', id);
+      if (!error) {
+        notifyDataChange('reports');
+      } else {
+        console.warn('Erro ao excluir relatório no Supabase:', error);
+      }
+    } catch (err) {
+      console.warn('Erro de rede ao excluir relatório no Supabase:', err);
+    }
+  }
+
+  const reports = getStored<Report>(STORAGE_KEY_REPORTS, []);
+  const filtered = reports.filter(r => r.id !== id);
+  setStored(STORAGE_KEY_REPORTS, filtered);
+  notifyDataChange('reports');
   return true;
 }
 

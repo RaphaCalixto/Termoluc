@@ -130,3 +130,30 @@ export interface Schedule {
   technician?: Technician;
 }
 
+export type ReportCategory = 'Limpeza' | 'Manutenção' | 'Instalação' | 'Laudo';
+
+export interface Report {
+  id: string;
+  title: string;
+  category: ReportCategory;
+  client_id?: string | null;
+  client_name?: string;
+  equipment_id?: string | null;
+  equipment_name?: string;
+  service_order_id?: string | null;
+  service_order_number?: string;
+  technician_name?: string;
+  file_url: string;
+  file_name: string;
+  file_size?: number; // em bytes
+  report_date: string; // YYYY-MM-DD
+  notes?: string;
+  created_by?: string;
+  created_at: string;
+  updated_at?: string;
+
+  // Relacionamentos expandidos
+  client?: Client;
+  equipment?: Equipment | null;
+}
+

@@ -77,3 +77,58 @@ export async function uploadImage(file: File, folder = 'uploads'): Promise<strin
 
   return optimizedDataUrl;
 }
+
+/**
+ * Faz upload de arquivo PDF para o Supabase Storage ou retorna Base64 como fallback
+ */
+export async function uploadPdfFile(
+  file: File | Blob,
+  customName?: string,
+  folder = 'general'
+): Promise<{ url: string; size: number; name: string }> {
+  const size = file.size;
+  const originalName = file instanceof File ? file.name : (customName || 'relatorio.pdf');
+  const safeName = originalName.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = `reports/${folder}/${Date.now()}-${safeName}`;
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase.storage
+        .from('termoluc-media')
+        .upload(path, file, {
+          contentType: 'application/pdf',
+          upsert: true,
+        });
+
+      if (!error && data) {
+        const { data: publicUrlData } = supabase.storage
+          .from('termoluc-media')
+          .getPublicUrl(data.path);
+
+        return {
+          url: publicUrlData.publicUrl,
+          size,
+          name: originalName,
+        };
+      } else if (error) {
+        console.warn('Erro no Supabase Storage ao enviar PDF, usando fallback Base64:', error);
+      }
+    } catch (err) {
+      console.warn('Erro de rede ao enviar PDF para o Supabase Storage:', err);
+    }
+  }
+
+  // Fallback para Data URL Base64
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  return {
+    url: dataUrl,
+    size,
+    name: originalName,
+  };
+}

@@ -20,6 +20,7 @@ import {
   UserCheck,
   ChevronLeft,
   ChevronRight,
+  FileDown,
   X
 } from 'lucide-react';
 import { Client, Equipment, ServiceOrder, ServiceOrderImage } from '../types';
@@ -62,6 +63,7 @@ export const ClientDetails: React.FC = () => {
   const [osModalOpen, setOsModalOpen] = useState(false);
   const [editingOS, setEditingOS] = useState<ServiceOrder | null>(null);
   const [selectedOSForDetails, setSelectedOSForDetails] = useState<ServiceOrder | null>(null);
+  const [openPrintDirectly, setOpenPrintDirectly] = useState(false);
 
   // Exclusão
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -575,7 +577,23 @@ export const ClientDetails: React.FC = () => {
                       <div className="flex items-center gap-2 self-end sm:self-start">
                         <button
                           type="button"
-                          onClick={() => setSelectedOSForDetails(order)}
+                          onClick={() => {
+                            setSelectedOSForDetails(order);
+                            setOpenPrintDirectly(true);
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-termoluc-600 hover:bg-termoluc-700 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs active:scale-95"
+                          title="Baixar PDF da OS"
+                        >
+                          <FileDown className="w-3.5 h-3.5" />
+                          <span>Baixar PDF</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedOSForDetails(order);
+                            setOpenPrintDirectly(false);
+                          }}
                           className="px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-termoluc-50 text-slate-700 hover:text-termoluc-700 text-xs font-semibold border border-slate-200 flex items-center gap-1.5 transition-colors"
                         >
                           <Eye className="w-3.5 h-3.5" />
@@ -651,15 +669,21 @@ export const ClientDetails: React.FC = () => {
 
       <ServiceOrderDetailsModal
         isOpen={Boolean(selectedOSForDetails)}
-        onClose={() => setSelectedOSForDetails(null)}
+        onClose={() => {
+          setSelectedOSForDetails(null);
+          setOpenPrintDirectly(false);
+        }}
         order={selectedOSForDetails}
+        initialShowPrint={openPrintDirectly}
         onEdit={(ord: ServiceOrder) => {
           setSelectedOSForDetails(null);
+          setOpenPrintDirectly(false);
           setEditingOS(ord);
           setOsModalOpen(true);
         }}
         onDelete={(ord: ServiceOrder) => {
           setSelectedOSForDetails(null);
+          setOpenPrintDirectly(false);
           setDeleteType('order');
           setItemToDelete({ id: ord.id, name: ord.order_number });
           setDeleteModalOpen(true);

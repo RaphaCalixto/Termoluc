@@ -8,6 +8,7 @@ import {
   Calendar,
   PlusCircle,
   FileText,
+  FolderArchive,
   ArrowRight,
   TrendingUp,
   Building2,
@@ -170,6 +171,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
             >
               <FileText className="w-4 h-4" />
               Ordens de Serviço
+            </button>
+            <button
+              onClick={() => navigate('/reports')}
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/15 transition-all"
+            >
+              <FolderArchive className="w-4 h-4 text-amber-300" />
+              Relatórios (PDF)
             </button>
           </div>
         </div>

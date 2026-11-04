@@ -220,3 +220,32 @@ ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS created_by TEXT DEFAULT 'Ale
 
 ALTER TABLE public.technicians ADD COLUMN IF NOT EXISTS password TEXT DEFAULT '123456';
 UPDATE public.technicians SET password = '123456' WHERE password IS NULL;
+
+-- ==============================================================================
+-- 9. TABELA DE RELATÓRIOS TÉCNICOS (PDFs: Limpeza, Manutenção, Instalação, Laudo)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.reports (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title TEXT NOT NULL,
+    category TEXT NOT NULL CHECK (category IN ('Limpeza', 'Manutenção', 'Instalação', 'Laudo')),
+    client_id UUID REFERENCES public.clients(id) ON DELETE SET NULL,
+    client_name TEXT,
+    equipment_id UUID REFERENCES public.equipment(id) ON DELETE SET NULL,
+    equipment_name TEXT,
+    service_order_id UUID REFERENCES public.service_orders(id) ON DELETE SET NULL,
+    service_order_number TEXT,
+    technician_name TEXT,
+    file_url TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    file_size INTEGER,
+    report_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    notes TEXT,
+    created_by TEXT DEFAULT 'Alesandro',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Full access to reports" ON public.reports;
+CREATE POLICY "Full access to reports" ON public.reports FOR ALL TO public USING (true) WITH CHECK (true);
+

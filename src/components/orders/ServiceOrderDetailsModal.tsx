@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { StatusBadge } from '../ui/Badge';
 import { ServiceOrderPrintView } from './ServiceOrderPrintView';
-import { ServiceOrder, OSStatus } from '../../types';
+import { ServiceOrder, OSStatus, ReportCategory } from '../../types';
 import {
   Calendar,
   User,
@@ -13,10 +13,17 @@ import {
   Trash2,
   Image as ImageIcon,
   DollarSign,
-  FileText
+  FileText,
+  Download,
+  FileDown,
+  FolderArchive,
+  ChevronDown
 } from 'lucide-react';
-import { updateServiceOrder } from '../../services/db';
+import { updateServiceOrder, createReport } from '../../services/db';
+import { uploadPdfFile } from '../../services/storage';
+import { generatePdfFromElement } from '../../utils/pdfGenerator';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 
 interface ServiceOrderDetailsModalProps {
   isOpen: boolean;
@@ -25,6 +32,7 @@ interface ServiceOrderDetailsModalProps {
   onEdit: (order: ServiceOrder) => void;
   onDelete: (order: ServiceOrder) => void;
   onStatusChange?: (order: ServiceOrder) => void;
+  initialShowPrint?: boolean;
 }
 
 export const ServiceOrderDetailsModal: React.FC<ServiceOrderDetailsModalProps> = ({
@@ -34,10 +42,24 @@ export const ServiceOrderDetailsModal: React.FC<ServiceOrderDetailsModalProps> =
   onEdit,
   onDelete,
   onStatusChange,
+  initialShowPrint = false,
 }) => {
+  const { user } = useAuth();
   const { success, error } = useToast();
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [showArchiveDropdown, setShowArchiveDropdown] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && initialShowPrint) {
+      setShowPrintModal(true);
+    } else if (!isOpen) {
+      setShowPrintModal(false);
+      setShowArchiveDropdown(false);
+    }
+  }, [isOpen, initialShowPrint]);
 
   if (!order) return null;
 
@@ -53,6 +75,81 @@ export const ServiceOrderDetailsModal: React.FC<ServiceOrderDetailsModalProps> =
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDirectDownloadPdf = async () => {
+    try {
+      setDownloadingPdf(true);
+      // Garante que o elemento está renderizado
+      if (!showPrintModal) {
+        setShowPrintModal(true);
+        setTimeout(async () => {
+          const el = document.getElementById('service-order-printable-doc');
+          if (el) {
+            await generatePdfFromElement(el, `Ordem_de_Servico_${order.order_number}`);
+            success(`PDF da OS ${order.order_number} baixado com sucesso!`);
+          }
+          setDownloadingPdf(false);
+        }, 500);
+        return;
+      }
+
+      const el = document.getElementById('service-order-printable-doc');
+      if (el) {
+        await generatePdfFromElement(el, `Ordem_de_Servico_${order.order_number}`);
+        success(`PDF da OS ${order.order_number} baixado com sucesso!`);
+      }
+    } catch (err: any) {
+      console.error('Erro ao gerar PDF:', err);
+      error('Não foi possível gerar o PDF diretamente. Você pode usar o botão "Imprimir / Salvar PDF".');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  const handleArchiveToReports = async (category: ReportCategory) => {
+    try {
+      setArchiving(true);
+      setShowArchiveDropdown(false);
+
+      const el = document.getElementById('service-order-printable-doc');
+      if (!el) {
+        error('Abra a visualização para arquivar o relatório.');
+        return;
+      }
+
+      const pdfBlob = await generatePdfFromElement(el, `OS_${order.order_number}`);
+      const uploaded = await uploadPdfFile(pdfBlob, `OS_${order.order_number}.pdf`, category.toLowerCase());
+
+      const clientName = order.clients && order.clients.length > 0
+        ? order.clients.map(c => c.name).join(' & ')
+        : (order.client?.name || 'Cliente');
+
+      await createReport({
+        title: `Ordem de Serviço ${order.order_number} - ${clientName}`,
+        category,
+        client_id: order.client_id || null,
+        client_name: clientName,
+        equipment_id: order.equipment_id || null,
+        equipment_name: order.equipment ? `${order.equipment.brand} ${order.equipment.model}` : undefined,
+        service_order_id: order.id,
+        service_order_number: order.order_number,
+        technician_name: order.technician?.name || 'Alessandro Araújo',
+        file_url: uploaded.url,
+        file_name: uploaded.name,
+        file_size: uploaded.size,
+        report_date: order.service_date,
+        notes: order.description,
+        created_by: user?.name || 'Alesandro',
+      });
+
+      success(`OS ${order.order_number} arquivada com sucesso em Relatórios > ${category}!`);
+    } catch (err: any) {
+      console.error('Erro ao arquivar em relatórios:', err);
+      error('Erro ao arquivar relatório no banco de dados.');
+    } finally {
+      setArchiving(false);
+    }
   };
 
   return (
@@ -84,14 +181,33 @@ export const ServiceOrderDetailsModal: React.FC<ServiceOrderDetailsModalProps> =
             </div>
 
             <div className="flex items-center gap-2">
+              {/* Botão Baixar PDF */}
+              <button
+                type="button"
+                onClick={handleDirectDownloadPdf}
+                disabled={downloadingPdf}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-termoluc-600 hover:bg-termoluc-700 rounded-xl transition-all shadow-xs active:scale-95 disabled:opacity-50"
+                title="Baixar arquivo PDF da OS"
+              >
+                {downloadingPdf ? (
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <FileDown className="w-3.5 h-3.5" />
+                )}
+                <span>Baixar PDF</span>
+              </button>
+
+              {/* Botão Visualizar / Imprimir */}
               <button
                 type="button"
                 onClick={() => setShowPrintModal(true)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors shadow-xs"
+                title="Visualizar documento pronto para impressão"
               >
                 <Printer className="w-3.5 h-3.5" />
-                Imprimir / PDF
+                <span>Visualizar / Imprimir</span>
               </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -103,6 +219,7 @@ export const ServiceOrderDetailsModal: React.FC<ServiceOrderDetailsModalProps> =
                 <Edit2 className="w-3.5 h-3.5" />
                 Editar
               </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -249,32 +366,131 @@ export const ServiceOrderDetailsModal: React.FC<ServiceOrderDetailsModalProps> =
         </div>
       </Modal>
 
-      {/* Modal de Impressão / Exportação */}
+      {/* Modal de Impressão / Exportação com Preview Visual */}
       {showPrintModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-sm p-4 sm:p-6 flex flex-col items-center">
-          <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden mb-6">
-            <div className="p-4 bg-slate-800 text-white flex items-center justify-between no-print">
-              <span className="font-semibold text-sm">Visualização de Impressão ({order.order_number})</span>
-              <div className="flex items-center gap-3">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-sm p-3 sm:p-6 flex flex-col items-center">
+          <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden mb-6 flex flex-col">
+            {/* Header da Barra de Ações (Não aparece na impressão) */}
+            <div className="p-4 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-3 no-print border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm">Visualização de PDF Oficial ({order.order_number})</span>
+                <span className="text-[10px] font-semibold uppercase bg-termoluc-600/30 text-termoluc-400 px-2 py-0.5 rounded border border-termoluc-500/30">
+                  Pronto para Download
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Botão de Download Direto de PDF */}
+                <button
+                  type="button"
+                  onClick={handleDirectDownloadPdf}
+                  disabled={downloadingPdf}
+                  className="px-3.5 py-2 text-xs font-bold text-white bg-termoluc-600 hover:bg-termoluc-500 rounded-xl flex items-center gap-1.5 transition-all shadow-sm shadow-termoluc-900/40 active:scale-95 disabled:opacity-50"
+                  title="Baixar arquivo .pdf diretamente no seu computador"
+                >
+                  {downloadingPdf ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Gerando PDF...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      <span>Baixar PDF (.pdf)</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Botão de Impressão / Salvar PDF do Navegador */}
                 <button
                   type="button"
                   onClick={handlePrint}
-                  className="px-4 py-2 text-xs font-bold text-white bg-termoluc-600 hover:bg-termoluc-500 rounded-xl flex items-center gap-2"
+                  className="px-3 py-2 text-xs font-semibold text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl flex items-center gap-1.5 transition-colors"
+                  title="Abrir diálogo de impressão com layout A4 nítido"
                 >
-                  <Printer className="w-4 h-4" />
-                  Imprimir / Salvar PDF
+                  <Printer className="w-4 h-4 text-slate-400" />
+                  <span>Imprimir / Salvar PDF</span>
                 </button>
+
+                {/* Botão de Arquivar em Relatórios */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowArchiveDropdown(!showArchiveDropdown)}
+                    disabled={archiving}
+                    className="px-3 py-2 text-xs font-semibold text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                    title="Armazenar este PDF na central de Relatórios da Termoluc"
+                  >
+                    {archiving ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Arquivando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <FolderArchive className="w-4 h-4 text-amber-400" />
+                        <span>Arquivar em Relatórios</span>
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                      </>
+                    )}
+                  </button>
+
+                  {/* Dropdown das 4 categorias */}
+                  {showArchiveDropdown && (
+                    <div className="absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-700 rounded-xl shadow-xl z-50 p-1.5 space-y-1">
+                      <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Salvar na Categoria:
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleArchiveToReports('Limpeza')}
+                        className="w-full text-left px-3 py-2 text-xs font-semibold text-sky-400 hover:bg-slate-800 rounded-lg flex items-center gap-2"
+                      >
+                        <span className="w-2 h-2 rounded-full bg-sky-500"></span>
+                        Limpeza & Higienização
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleArchiveToReports('Manutenção')}
+                        className="w-full text-left px-3 py-2 text-xs font-semibold text-amber-400 hover:bg-slate-800 rounded-lg flex items-center gap-2"
+                      >
+                        <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                        Manutenção Técnica
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleArchiveToReports('Instalação')}
+                        className="w-full text-left px-3 py-2 text-xs font-semibold text-blue-400 hover:bg-slate-800 rounded-lg flex items-center gap-2"
+                      >
+                        <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                        Instalação & Start-up
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleArchiveToReports('Laudo')}
+                        className="w-full text-left px-3 py-2 text-xs font-semibold text-emerald-400 hover:bg-slate-800 rounded-lg flex items-center gap-2"
+                      >
+                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        Laudo Técnico & PMOC
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Fechar */}
                 <button
                   type="button"
                   onClick={() => setShowPrintModal(false)}
-                  className="px-3 py-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-700 rounded-xl"
+                  className="px-3 py-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors ml-1"
                 >
                   Fechar
                 </button>
               </div>
             </div>
-            <div className="bg-white p-6">
-              <ServiceOrderPrintView order={order} />
+
+            {/* Documento Renderizado Pronto para Salvar / Imprimir */}
+            <div className="bg-slate-100/50 p-4 sm:p-8 overflow-y-auto">
+              <ServiceOrderPrintView order={order} id="service-order-printable-doc" />
             </div>
           </div>
         </div>
