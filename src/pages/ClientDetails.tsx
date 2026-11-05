@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileDown,
+  FileCheck2,
   X
 } from 'lucide-react';
 import { Client, Equipment, ServiceOrder, ServiceOrderImage } from '../types';
@@ -37,6 +38,7 @@ import { ClientFormModal } from '../components/clients/ClientFormModal';
 import { EquipmentFormModal } from '../components/equipment/EquipmentFormModal';
 import { ServiceOrderFormModal } from '../components/orders/ServiceOrderFormModal';
 import { ServiceOrderDetailsModal } from '../components/orders/ServiceOrderDetailsModal';
+import { ReportEditorModal } from '../components/reports/ReportEditorModal';
 import { DeleteConfirmModal } from '../components/ui/DeleteConfirmModal';
 import { StatusBadge } from '../components/ui/Badge';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
@@ -62,6 +64,9 @@ export const ClientDetails: React.FC = () => {
   const [editingEquip, setEditingEquip] = useState<Equipment | null>(null);
   const [osModalOpen, setOsModalOpen] = useState(false);
   const [editingOS, setEditingOS] = useState<ServiceOrder | null>(null);
+  const [targetEquipForOS, setTargetEquipForOS] = useState<Equipment | null>(null);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [targetEquipForReport, setTargetEquipForReport] = useState<Equipment | null>(null);
   const [selectedOSForDetails, setSelectedOSForDetails] = useState<ServiceOrder | null>(null);
   const [openPrintDirectly, setOpenPrintDirectly] = useState(false);
 
@@ -168,7 +173,21 @@ export const ClientDetails: React.FC = () => {
           <button
             type="button"
             onClick={() => {
+              setTargetEquipForReport(null);
+              setReportModalOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200 hover:border-emerald-500 text-slate-700 hover:text-emerald-700 text-xs font-bold shadow-xs transition-all active:scale-95"
+            title="Criar Relatório Oficial para este cliente"
+          >
+            <FileCheck2 className="w-3.5 h-3.5 text-emerald-600" />
+            Criar Relatórios
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
               setEditingOS(null);
+              setTargetEquipForOS(null);
               setOsModalOpen(true);
             }}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-termoluc-600 hover:bg-termoluc-700 text-white text-xs font-bold shadow-sm shadow-termoluc-200 transition-all active:scale-95"
@@ -474,18 +493,34 @@ export const ClientDetails: React.FC = () => {
                     </div>
 
                     {/* Card Actions */}
-                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingOS(null);
-                          setOsModalOpen(true);
-                        }}
-                        className="text-xs font-bold text-termoluc-600 hover:text-termoluc-700 flex items-center gap-1"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        Criar OS
-                      </button>
+                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingOS(null);
+                            setTargetEquipForOS(equip);
+                            setOsModalOpen(true);
+                          }}
+                          className="text-xs font-bold text-termoluc-600 hover:text-termoluc-700 flex items-center gap-1"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Criar OS
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTargetEquipForReport(equip);
+                            setReportModalOpen(true);
+                          }}
+                          className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded-lg transition-colors"
+                          title="Criar Relatório Oficial para este equipamento"
+                        >
+                          <FileCheck2 className="w-3.5 h-3.5" />
+                          Criar Relatórios
+                        </button>
+                      </div>
 
                       <div className="flex items-center gap-1">
                         <button
@@ -661,11 +696,31 @@ export const ClientDetails: React.FC = () => {
 
       <ServiceOrderFormModal
         isOpen={osModalOpen}
-        onClose={() => setOsModalOpen(false)}
+        onClose={() => {
+          setOsModalOpen(false);
+          setTargetEquipForOS(null);
+        }}
         order={editingOS}
         defaultClientId={client.id}
+        defaultEquipmentId={targetEquipForOS?.id}
         onSuccess={() => loadClientData()}
       />
+
+      {reportModalOpen && (
+        <ReportEditorModal
+          isOpen={reportModalOpen}
+          onClose={() => {
+            setReportModalOpen(false);
+            setTargetEquipForReport(null);
+          }}
+          initialEquipment={targetEquipForReport}
+          initialClient={client}
+          initialType="vistoria"
+          onSuccess={() => {
+            loadClientData();
+          }}
+        />
+      )}
 
       <ServiceOrderDetailsModal
         isOpen={Boolean(selectedOSForDetails)}
