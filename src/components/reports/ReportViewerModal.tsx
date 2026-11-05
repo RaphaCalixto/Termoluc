@@ -9,10 +9,12 @@ import {
   FileText,
   Trash2,
   FileCheck2,
-  Sparkles
+  Sparkles,
+  Snowflake
 } from 'lucide-react';
 import { ReportVistoriaView } from './ReportVistoriaView';
 import { ReportLimpezaView } from './ReportLimpezaView';
+import { ReportInstalacaoView } from './ReportInstalacaoView';
 
 interface ReportViewerModalProps {
   isOpen: boolean;
@@ -58,7 +60,8 @@ export const ReportViewerModal: React.FC<ReportViewerModalProps> = ({
 
   const isOfficialVistoria = (report.report_type === 'vistoria' || Boolean(report.vistoria_data)) && report.vistoria_data;
   const isOfficialLimpeza = (report.report_type === 'limpeza' || Boolean(report.limpeza_data)) && report.limpeza_data;
-  const isCustomOfficial = isOfficialVistoria || isOfficialLimpeza;
+  const isOfficialInstalacao = (report.report_type === 'instalacao' || Boolean(report.instalacao_data)) && report.instalacao_data;
+  const isCustomOfficial = isOfficialVistoria || isOfficialLimpeza || isOfficialInstalacao;
 
   return (
     <Modal
@@ -82,6 +85,11 @@ export const ReportViewerModal: React.FC<ReportViewerModalProps> = ({
                   <>
                     <FileCheck2 className="w-3.5 h-3.5 text-purple-700" />
                     <span>Modelo Oficial Laudo</span>
+                  </>
+                ) : isOfficialInstalacao ? (
+                  <>
+                    <Snowflake className="w-3.5 h-3.5 text-blue-700" />
+                    <span>Modelo Oficial Instalação</span>
                   </>
                 ) : (
                   <>
@@ -165,6 +173,14 @@ export const ReportViewerModal: React.FC<ReportViewerModalProps> = ({
           <div className="max-h-[72vh] overflow-y-auto p-4 bg-slate-100 rounded-2xl border border-slate-200 flex justify-center">
             <ReportVistoriaView
               data={report.vistoria_data!}
+              clientName={report.client_name}
+              showActions={true}
+            />
+          </div>
+        ) : isOfficialInstalacao ? (
+          <div className="max-h-[72vh] overflow-y-auto p-4 bg-slate-100 rounded-2xl border border-slate-200 flex justify-center">
+            <ReportInstalacaoView
+              data={report.instalacao_data!}
               clientName={report.client_name}
               showActions={true}
             />

@@ -1640,6 +1640,7 @@ function parseReportItem(item: any, clientMap: Map<string, Client>, equipMap: Ma
   let report_code = item.report_code;
   let vistoria_data = item.vistoria_data;
   let limpeza_data = item.limpeza_data;
+  let instalacao_data = item.instalacao_data;
   let cleanNotes = item.notes;
 
   if (item.notes && typeof item.notes === 'string' && item.notes.includes('<!--TERMOLUC_REPORT_PAYLOAD:')) {
@@ -1651,6 +1652,7 @@ function parseReportItem(item: any, clientMap: Map<string, Client>, equipMap: Ma
         report_code = payload.report_code || report_code;
         vistoria_data = payload.vistoria_data || vistoria_data;
         limpeza_data = payload.limpeza_data || limpeza_data;
+        instalacao_data = payload.instalacao_data || instalacao_data;
         cleanNotes = item.notes.replace(/<!--TERMOLUC_REPORT_PAYLOAD:.*?-->\n?/s, '').trim();
       }
     } catch (e) {
@@ -1664,6 +1666,7 @@ function parseReportItem(item: any, clientMap: Map<string, Client>, equipMap: Ma
     report_code,
     vistoria_data,
     limpeza_data,
+    instalacao_data,
     notes: cleanNotes,
     client: item.client_id ? clientMap.get(item.client_id) : undefined,
     equipment: item.equipment_id ? equipMap.get(item.equipment_id) : null,
@@ -1717,14 +1720,15 @@ export async function createReport(
   const report_date = data.report_date || now.split('T')[0];
   const created_by = data.created_by || 'Alesandro';
 
-  // Se houver dados estruturados de vistoria ou limpeza, empacota com segurança nas notes
+  // Se houver dados estruturados de vistoria, limpeza ou instalação, empacota com segurança nas notes
   let combinedNotes = data.notes || '';
-  if (data.report_type === 'vistoria' || data.report_type === 'limpeza') {
+  if (data.report_type === 'vistoria' || data.report_type === 'limpeza' || data.report_type === 'instalacao') {
     const payload = {
       report_type: data.report_type,
       report_code: data.report_code,
       vistoria_data: data.vistoria_data,
       limpeza_data: data.limpeza_data,
+      instalacao_data: data.instalacao_data,
     };
     combinedNotes = `<!--TERMOLUC_REPORT_PAYLOAD:${JSON.stringify(payload)}-->\n${data.notes || ''}`;
   }

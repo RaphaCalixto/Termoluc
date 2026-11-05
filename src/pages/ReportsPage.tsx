@@ -100,7 +100,7 @@ export const ReportsPage: React.FC = () => {
 
   // Modais
   const [editorModalOpen, setEditorModalOpen] = useState(false);
-  const [editorInitialType, setEditorInitialType] = useState<'vistoria' | 'limpeza'>('vistoria');
+  const [editorInitialType, setEditorInitialType] = useState<'vistoria' | 'limpeza' | 'instalacao'>('vistoria');
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadDefaultCategory, setUploadDefaultCategory] = useState<ReportCategory>('Manutenção');
   const [viewerReport, setViewerReport] = useState<Report | null>(null);
@@ -201,6 +201,9 @@ export const ReportsPage: React.FC = () => {
       setEditorModalOpen(true);
     } else if (catId === 'Limpeza') {
       setEditorInitialType('limpeza');
+      setEditorModalOpen(true);
+    } else if (catId === 'Instalação') {
+      setEditorInitialType('instalacao');
       setEditorModalOpen(true);
     } else {
       setUploadDefaultCategory(catId);
@@ -439,12 +442,16 @@ export const ReportsPage: React.FC = () => {
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs flex-shrink-0 ${
                       rep.report_type === 'vistoria' || rep.vistoria_data
                         ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : rep.report_type === 'instalacao' || rep.instalacao_data
+                        ? 'bg-blue-50 text-blue-700 border border-blue-200'
                         : rep.report_type === 'limpeza' || rep.limpeza_data
                         ? 'bg-sky-50 text-sky-700 border border-sky-200'
                         : 'bg-termoluc-50 text-termoluc-600 border border-termoluc-100'
                     }`}>
                       {rep.report_type === 'vistoria' || rep.vistoria_data ? (
                         <FileCheck2 className="w-5 h-5" />
+                      ) : rep.report_type === 'instalacao' || rep.instalacao_data ? (
+                        <Snowflake className="w-5 h-5" />
                       ) : rep.report_type === 'limpeza' || rep.limpeza_data ? (
                         <Sparkles className="w-5 h-5" />
                       ) : (
@@ -460,6 +467,11 @@ export const ReportsPage: React.FC = () => {
                         {(rep.report_type === 'vistoria' || rep.vistoria_data) && (
                           <span className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
                             Modelo Laudo
+                          </span>
+                        )}
+                        {(rep.report_type === 'instalacao' || rep.instalacao_data) && (
+                          <span className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">
+                            Modelo Instalação
                           </span>
                         )}
                         {(rep.report_type === 'limpeza' || rep.limpeza_data) && (

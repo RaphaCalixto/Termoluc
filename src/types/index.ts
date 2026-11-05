@@ -175,11 +175,38 @@ export interface LimpezaReportData {
   city_date?: string; // ex: "Rio de Janeiro, 05 de Outubro de 2026"
 }
 
+export interface InstalacaoEquipmentItem {
+  id: string;
+  ambient: string; // ex: "Quarto Filho"
+  equipment_brand_model: string; // ex: "Midea Split Hi-Wall (Novo)"
+  capacity: string; // ex: "9.000 BTUs"
+  service_type: string; // ex: "INSTALAÇÃO NOVA"
+  status: string; // ex: "OPERACIONAL"
+}
+
+export interface InstalacaoReportData {
+  report_code: string; // ex: RT-2026/092-LEB
+  subtitle?: string; // ex: "Serviço Técnico de Implantação e Montagem de Novos Sistemas Split Hi-Wall"
+  date_formatted: string; // ex: "Outubro de 2026"
+  operational_status: string; // ex: "100% CONCLUÍDO & TESTADO"
+  client_address_full: string; // ex: "Rua Almirante Guilhem, nº 454, Bloco 1, Apt 603\nLeblon, Rio de Janeiro / RJ – CEP: 22440-000"
+  kpi_new_installations: string; // ex: "02 Unid."
+  kpi_total_operating: string; // ex: "02 Unid."
+  kpi_vacuum_level: string; // ex: "< 500 µ"
+  kpi_tightness: string; // ex: "100%"
+  initial_scope: string; // escopo das intervenções técnicas focado em instalação
+  items: InstalacaoEquipmentItem[];
+  procedures: { title: string; description: string }[];
+  commissioning_conclusion: string; // parecer de comissionamento e liberação
+  manufacturer_recommendations: string[]; // recomendações do fabricante e operação
+  city_date?: string; // ex: "Rio de Janeiro, 09 de Outubro de 2026."
+}
+
 export interface Report {
   id: string;
   title: string;
   category: ReportCategory;
-  report_type?: 'vistoria' | 'limpeza' | 'arquivo'; // Tipo do modelo oficial
+  report_type?: 'vistoria' | 'limpeza' | 'instalacao' | 'arquivo'; // Tipo do modelo oficial
   report_code?: string; // ex: RT-2026/104-LEB
   client_id?: string | null;
   client_name?: string;
@@ -195,6 +222,7 @@ export interface Report {
   notes?: string;
   vistoria_data?: VistoriaReportData;
   limpeza_data?: LimpezaReportData;
+  instalacao_data?: InstalacaoReportData;
   created_by?: string;
   created_at: string;
   updated_at?: string;

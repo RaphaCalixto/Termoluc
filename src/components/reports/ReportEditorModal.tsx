@@ -7,13 +7,16 @@ import {
   Report, 
   VistoriaReportData, 
   LimpezaReportData, 
-  LimpezaEquipmentItem 
+  LimpezaEquipmentItem,
+  InstalacaoReportData,
+  InstalacaoEquipmentItem
 } from '../../types';
 import { getClients, getEquipmentByClientId, getServiceOrders, createReport } from '../../services/db';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import { ReportVistoriaView } from './ReportVistoriaView';
 import { ReportLimpezaView } from './ReportLimpezaView';
+import { ReportInstalacaoView } from './ReportInstalacaoView';
 import { 
   FileCheck2, 
   Eye, 
@@ -24,6 +27,7 @@ import {
   Download, 
   Sparkles, 
   ClipboardCheck,
+  Snowflake,
   Building,
   Loader2
 } from 'lucide-react';
@@ -32,7 +36,7 @@ import { generatePdfFromElement } from '../../utils/pdfGenerator';
 interface ReportEditorModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialType?: 'vistoria' | 'limpeza';
+  initialType?: 'vistoria' | 'limpeza' | 'instalacao';
   initialEquipment?: Equipment | null;
   initialClient?: Client | null;
   onSuccess?: (report: Report) => void;
@@ -50,7 +54,7 @@ export const ReportEditorModal: React.FC<ReportEditorModalProps> = ({
   const { success, error } = useToast();
 
   const [activeTab, setActiveTab] = useState<'editor' | 'preview'>('editor');
-  const [reportType, setReportType] = useState<'vistoria' | 'limpeza'>(initialType);
+  const [reportType, setReportType] = useState<'vistoria' | 'limpeza' | 'instalacao'>(initialType);
 
   // Clientes & Equipamentos
   const [clients, setClients] = useState<Client[]>([]);
@@ -205,6 +209,69 @@ export const ReportEditorModal: React.FC<ReportEditorModalProps> = ({
     city_date: `Rio de Janeiro, ${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}.`,
   });
 
+  // ===================== DADOS MODELO 3: INSTALAÇÃO DE CLIMATIZADORES =====================
+  const [instalacaoData, setInstalacaoData] = useState<InstalacaoReportData>({
+    report_code: `RT-${currentYear}/${Math.floor(100 + Math.random() * 900)}-LEB`,
+    subtitle: 'Serviço Técnico de Implantação e Montagem de Novos Sistemas Split Hi-Wall',
+    date_formatted: capitalizedMonthYear,
+    operational_status: '100% CONCLUÍDO & TESTADO',
+    client_address_full: 'Rua Almirante Guilhem, nº 454, Bloco 1, Apt 603\nLeblon, Rio de Janeiro / RJ – CEP: 22440-000',
+    kpi_new_installations: '02 Unid.',
+    kpi_total_operating: '02 Unid.',
+    kpi_vacuum_level: '< 500 µ',
+    kpi_tightness: '100%',
+    initial_scope:
+      'A equipe técnica da Termoluc Refrigeração e Manutenção Ltda. executou a instalação completa e implantação de novas unidades de ar condicionado Split Hi-Wall no imóvel informado. Todos os procedimentos de montagem mecânica, tubulação frigorífica em cobre, desidratação da linha, pressurização e comissionamento elétrico obedeceram rigorosamente às normas regulamentares vigentes e recomendações dos fabricantes.',
+    items: [
+      {
+        id: '1',
+        ambient: 'Quarto Filho',
+        equipment_brand_model: 'Midea Split Hi-Wall (Novo)',
+        capacity: '9.000 BTUs',
+        service_type: 'INSTALAÇÃO NOVA',
+        status: 'OPERACIONAL',
+      },
+      {
+        id: '2',
+        ambient: 'Suíte',
+        equipment_brand_model: 'Midea Split Hi-Wall (Novo)',
+        capacity: '9.000 BTUs',
+        service_type: 'INSTALAÇÃO NOVA',
+        status: 'OPERACIONAL',
+      },
+    ],
+    procedures: [
+      {
+        title: 'Montagem de Infraestrutura Nova',
+        description:
+          'Fixação mecânica reforçada dos suportes das evaporadoras e condensadoras. Instalação de linha frigorífica em cobre com isolamento térmico elastomérico individual.',
+      },
+      {
+        title: 'Desidratação da Linha (Vácuo)',
+        description:
+          'Execução de processo de vácuo nas novas tubulações com bomba de duplo estágio e vacuômetro digital até atingir nível de contaminação inferior a 500 mícrons de Hg.',
+      },
+      {
+        title: 'Testes de Drenagem e Elétrica',
+        description:
+          'Instalação dos ramais de dreno e checagem de escoamento por gravidade. Conexões elétricas e interligações efetuadas com cabeamento dimensionado e bornes isolados.',
+      },
+      {
+        title: 'Teste de Estanqueidade e Pressurização',
+        description:
+          'Pressurização do sistema frigorífico com nitrogênio seco (N2) para verificação rigorosa de juntas e conexões flangeadas, garantindo estanqueidade absoluta antes da liberação do fluido refrigerante.',
+      },
+    ],
+    commissioning_conclusion:
+      'Atestamos que as novas instalações foram submetidas a protocolo rigoroso de teste de desempenho e comissionamento técnico. Todas as unidades apresentaram perfeita rendição térmica, escoamento de dreno sem obstruções, baixo nível de ruído e parâmetros elétricos e pressóricos nominais de acordo com as especificações do fabricante.',
+    manufacturer_recommendations: [
+      'Preservação da Garantia: A manutenção das novas unidades instaladas deve seguir o cronograma semestral de inspeção técnica especializada para validação da garantia de fábrica.',
+      'Uso Consciente: Configurar a temperatura de conforto entre 23°C e 24°C para assegurar eficiência energética e prolongar a vida útil dos compressores.',
+      'Operação Adequada: Manter portas e janelas fechadas durante o funcionamento dos equipamentos para assegurar o rendimento térmico do sistema e evitar sobrecarga operacional.',
+    ],
+    city_date: `Rio de Janeiro, ${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}.`,
+  });
+
   // Carrega clientes e dados iniciais ao abrir
   useEffect(() => {
     async function init() {
@@ -267,6 +334,11 @@ export const ReportEditorModal: React.FC<ReportEditorModalProps> = ({
       ...prev,
       client_address_full: addressStr,
     }));
+
+    setInstalacaoData(prev => ({
+      ...prev,
+      client_address_full: addressStr,
+    }));
   };
 
   const applyEquipmentData = (equip: Equipment) => {
@@ -289,6 +361,22 @@ export const ReportEditorModal: React.FC<ReportEditorModalProps> = ({
           ...updatedItems[0],
           ambient: location,
           equipment_model: summary || updatedItems[0].equipment_model,
+        };
+      }
+      return {
+        ...prev,
+        items: updatedItems,
+      };
+    });
+
+    setInstalacaoData(prev => {
+      const updatedItems = [...prev.items];
+      if (updatedItems.length > 0) {
+        updatedItems[0] = {
+          ...updatedItems[0],
+          ambient: location,
+          equipment_brand_model: summary ? `${summary} (Novo)` : updatedItems[0].equipment_brand_model,
+          capacity: equip.capacity || updatedItems[0].capacity,
         };
       }
       return {
@@ -354,6 +442,44 @@ export const ReportEditorModal: React.FC<ReportEditorModalProps> = ({
     });
   };
 
+  // Funções de manipulação do Modelo 3 (Instalação)
+  const handleAddItemInstalacao = () => {
+    const newItem: InstalacaoEquipmentItem = {
+      id: String(Date.now()),
+      ambient: 'Novo Ambiente',
+      equipment_brand_model: 'Split Hi-Wall (Novo)',
+      capacity: '12.000 BTUs',
+      service_type: 'INSTALAÇÃO NOVA',
+      status: 'OPERACIONAL',
+    };
+    setInstalacaoData(prev => ({
+      ...prev,
+      items: [...prev.items, newItem],
+      kpi_new_installations: `${String(prev.items.length + 1).padStart(2, '0')} Unid.`,
+      kpi_total_operating: `${String(prev.items.length + 1).padStart(2, '0')} Unid.`,
+    }));
+  };
+
+  const handleRemoveItemInstalacao = (index: number) => {
+    setInstalacaoData(prev => {
+      const items = prev.items.filter((_, i) => i !== index);
+      return {
+        ...prev,
+        items,
+        kpi_new_installations: `${String(items.length).padStart(2, '0')} Unid.`,
+        kpi_total_operating: `${String(items.length).padStart(2, '0')} Unid.`,
+      };
+    });
+  };
+
+  const handleUpdateItemInstalacao = (index: number, field: keyof InstalacaoEquipmentItem, val: string) => {
+    setInstalacaoData(prev => {
+      const items = [...prev.items];
+      items[index] = { ...items[index], [field]: val };
+      return { ...prev, items };
+    });
+  };
+
   // Funções de manipulação de Procedimentos
   const handleAddProcedureVistoria = () => {
     setVistoriaData(prev => ({
@@ -389,15 +515,31 @@ export const ReportEditorModal: React.FC<ReportEditorModalProps> = ({
       const equipObj = equipmentList.find(e => e.id === selectedEquipmentId);
       const orderObj = orders.find(o => o.id === selectedOrderId);
 
-      const code = reportType === 'vistoria' ? vistoriaData.report_code : limpezaData.report_code;
-      const title =
-        reportType === 'vistoria'
-          ? `Laudo de Vistoria - ${code}`
-          : `Higienização e Manutenção Preventiva - ${code}`;
+      let category: 'Laudo' | 'Limpeza' | 'Instalação' = 'Laudo';
+      let title = '';
+      let code = '';
+      let elemId = '';
+
+      if (reportType === 'vistoria') {
+        category = 'Laudo';
+        code = vistoriaData.report_code;
+        title = `Laudo de Vistoria - ${code}`;
+        elemId = 'relatorio-vistoria-document';
+      } else if (reportType === 'instalacao') {
+        category = 'Instalação';
+        code = instalacaoData.report_code;
+        title = `Relatório de Instalação - ${code}`;
+        elemId = 'relatorio-instalacao-document';
+      } else {
+        category = 'Limpeza';
+        code = limpezaData.report_code;
+        title = `Higienização e Manutenção Preventiva - ${code}`;
+        elemId = 'relatorio-limpeza-document';
+      }
 
       const created = await createReport({
         title,
-        category: reportType === 'vistoria' ? 'Laudo' : 'Limpeza',
+        category,
         report_type: reportType,
         report_code: code,
         client_id: selectedClientId || undefined,
@@ -413,13 +555,13 @@ export const ReportEditorModal: React.FC<ReportEditorModalProps> = ({
         notes: `Relatório oficial emitido eletronicamente via sistema Termoluc. Código: ${code}`,
         vistoria_data: reportType === 'vistoria' ? vistoriaData : undefined,
         limpeza_data: reportType === 'limpeza' ? limpezaData : undefined,
+        instalacao_data: reportType === 'instalacao' ? instalacaoData : undefined,
       });
 
       success(`Relatório "${title}" salvo no sistema com sucesso!`);
 
       if (andDownload) {
         // Dispara geração do PDF a partir da tela
-        const elemId = reportType === 'vistoria' ? 'relatorio-vistoria-document' : 'relatorio-limpeza-document';
         // Se estiver na aba editor, muda temporariamente para gerar
         setActiveTab('preview');
         setTimeout(async () => {
@@ -456,7 +598,7 @@ export const ReportEditorModal: React.FC<ReportEditorModalProps> = ({
         {/* Seletor de Modelo e Abas Superiores */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
           {/* Seletor de Modelo */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">
               Modelo:
             </span>
@@ -470,7 +612,20 @@ export const ReportEditorModal: React.FC<ReportEditorModalProps> = ({
               }`}
             >
               <ClipboardCheck className="w-3.5 h-3.5" />
-              <span>Laudo / Vistoria Técnica</span>
+              <span>Laudo / Vistoria</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setReportType('instalacao')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                reportType === 'instalacao'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              <Snowflake className="w-3.5 h-3.5" />
+              <span>Instalação</span>
             </button>
 
             <button
@@ -483,7 +638,7 @@ export const ReportEditorModal: React.FC<ReportEditorModalProps> = ({
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Limpeza & Higienização</span>
+              <span>Limpeza</span>
             </button>
           </div>
 
@@ -996,6 +1151,223 @@ export const ReportEditorModal: React.FC<ReportEditorModalProps> = ({
                 </div>
               </div>
             )}
+
+            {/* SE REPORT TYPE === 'instalacao' (MODELO 3) */}
+            {reportType === 'instalacao' && (
+              <div className="space-y-4">
+                {/* Cabeçalho e Indicadores */}
+                <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                  <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                    <Snowflake className="w-4 h-4 text-blue-600" />
+                    Identificação da Instalação e Indicadores (KPIs)
+                  </h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        CÓDIGO RELATÓRIO
+                      </label>
+                      <input
+                        type="text"
+                        value={instalacaoData.report_code}
+                        onChange={e => setInstalacaoData({ ...instalacaoData, report_code: e.target.value })}
+                        className="w-full p-2 rounded-lg border border-slate-200 font-bold text-sky-700"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        DATA EXECUÇÃO
+                      </label>
+                      <input
+                        type="text"
+                        value={instalacaoData.date_formatted}
+                        onChange={e => setInstalacaoData({ ...instalacaoData, date_formatted: e.target.value })}
+                        className="w-full p-2 rounded-lg border border-slate-200 font-bold"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        STATUS GERAL DOS SERVIÇOS
+                      </label>
+                      <input
+                        type="text"
+                        value={instalacaoData.operational_status}
+                        onChange={e => setInstalacaoData({ ...instalacaoData, operational_status: e.target.value })}
+                        className="w-full p-2 rounded-lg border border-slate-200 font-black text-emerald-600 uppercase"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 4 Cards de KPI */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 text-xs">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">
+                        Instalações Novas
+                      </label>
+                      <input
+                        type="text"
+                        value={instalacaoData.kpi_new_installations}
+                        onChange={e => setInstalacaoData({ ...instalacaoData, kpi_new_installations: e.target.value })}
+                        className="w-full p-1.5 rounded-lg border border-slate-200 font-black text-center text-slate-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">
+                        Total em Operação
+                      </label>
+                      <input
+                        type="text"
+                        value={instalacaoData.kpi_total_operating}
+                        onChange={e => setInstalacaoData({ ...instalacaoData, kpi_total_operating: e.target.value })}
+                        className="w-full p-1.5 rounded-lg border border-slate-200 font-black text-center text-slate-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">
+                        Nível de Vácuo (Hg)
+                      </label>
+                      <input
+                        type="text"
+                        value={instalacaoData.kpi_vacuum_level}
+                        onChange={e => setInstalacaoData({ ...instalacaoData, kpi_vacuum_level: e.target.value })}
+                        className="w-full p-1.5 rounded-lg border border-slate-200 font-black text-center text-sky-700"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">
+                        Vácuo & Estanqueidade
+                      </label>
+                      <input
+                        type="text"
+                        value={instalacaoData.kpi_tightness}
+                        onChange={e => setInstalacaoData({ ...instalacaoData, kpi_tightness: e.target.value })}
+                        className="w-full p-1.5 rounded-lg border border-slate-200 font-black text-center text-emerald-600"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      ENDEREÇO COMPLETO DO LOCAL DA INSTALAÇÃO
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={instalacaoData.client_address_full}
+                      onChange={e => setInstalacaoData({ ...instalacaoData, client_address_full: e.target.value })}
+                      className="w-full p-2 rounded-lg border border-slate-200 text-xs text-slate-700"
+                    />
+                  </div>
+                </div>
+
+                {/* 1. Escopo das Intervenções Técnicas */}
+                <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-2">
+                  <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
+                    1. Escopo das Intervenções Técnicas (Instalação e Comissionamento)
+                  </h4>
+                  <textarea
+                    rows={3}
+                    value={instalacaoData.initial_scope}
+                    onChange={e => setInstalacaoData({ ...instalacaoData, initial_scope: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 leading-relaxed"
+                  />
+                </div>
+
+                {/* 2. Detalhamento por Ambiente e Equipamento */}
+                <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
+                      2. Detalhamento por Ambiente e Equipamento
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={handleAddItemInstalacao}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Adicionar Equipamento
+                    </button>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    {instalacaoData.items.map((item, index) => (
+                      <div
+                        key={item.id || index}
+                        className="p-2.5 rounded-xl border border-slate-100 bg-slate-50/70 grid grid-cols-1 sm:grid-cols-12 gap-2 items-center text-xs"
+                      >
+                        <div className="sm:col-span-3">
+                          <label className="text-[10px] text-slate-400 block sm:hidden">Ambiente</label>
+                          <input
+                            type="text"
+                            value={item.ambient}
+                            onChange={e => handleUpdateItemInstalacao(index, 'ambient', e.target.value)}
+                            placeholder="Ambiente (ex: Quarto Filho)"
+                            className="w-full p-1.5 rounded-lg border border-slate-200 bg-white font-bold"
+                          />
+                        </div>
+                        <div className="sm:col-span-4">
+                          <label className="text-[10px] text-slate-400 block sm:hidden">Equipamento / Marca</label>
+                          <input
+                            type="text"
+                            value={item.equipment_brand_model}
+                            onChange={e => handleUpdateItemInstalacao(index, 'equipment_brand_model', e.target.value)}
+                            placeholder="Equipamento (ex: Midea Split Hi-Wall (Novo))"
+                            className="w-full p-1.5 rounded-lg border border-slate-200 bg-white font-medium"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="text-[10px] text-slate-400 block sm:hidden">Capacidade</label>
+                          <input
+                            type="text"
+                            value={item.capacity}
+                            onChange={e => handleUpdateItemInstalacao(index, 'capacity', e.target.value)}
+                            placeholder="Capacidade (9.000 BTUs)"
+                            className="w-full p-1.5 rounded-lg border border-slate-200 bg-white"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="text-[10px] text-slate-400 block sm:hidden">Tipo de Serviço</label>
+                          <input
+                            type="text"
+                            value={item.service_type}
+                            onChange={e => handleUpdateItemInstalacao(index, 'service_type', e.target.value)}
+                            placeholder="INSTALAÇÃO NOVA"
+                            className="w-full p-1.5 rounded-lg border border-slate-200 bg-white font-bold text-sky-800"
+                          />
+                        </div>
+                        <div className="sm:col-span-1 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItemInstalacao(index)}
+                            disabled={instalacaoData.items.length <= 1}
+                            className="p-1.5 text-slate-400 hover:text-red-600 disabled:opacity-30 rounded-lg"
+                            title="Remover equipamento"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 4. Parecer de Comissionamento e Liberação */}
+                <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-2">
+                  <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
+                    4. Parecer de Comissionamento e Liberação (Resultado dos Testes)
+                  </h4>
+                  <textarea
+                    rows={3}
+                    value={instalacaoData.commissioning_conclusion}
+                    onChange={e => setInstalacaoData({ ...instalacaoData, commissioning_conclusion: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 leading-relaxed font-medium"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1007,6 +1379,12 @@ export const ReportEditorModal: React.FC<ReportEditorModalProps> = ({
                 data={vistoriaData}
                 clientName={selectedClient?.name}
                 clientAddress={vistoriaData.address_line}
+                showActions={false}
+              />
+            ) : reportType === 'instalacao' ? (
+              <ReportInstalacaoView
+                data={instalacaoData}
+                clientName={selectedClient?.name}
                 showActions={false}
               />
             ) : (

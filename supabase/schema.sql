@@ -244,6 +244,7 @@ CREATE TABLE IF NOT EXISTS public.reports (
     notes TEXT,
     vistoria_data JSONB,
     limpeza_data JSONB,
+    instalacao_data JSONB,
     created_by TEXT DEFAULT 'Alesandro',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -254,6 +255,7 @@ ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS report_type TEXT DEFAULT 'ar
 ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS report_code TEXT;
 ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS vistoria_data JSONB;
 ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS limpeza_data JSONB;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS instalacao_data JSONB;
 
 ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Full access to reports" ON public.reports;
